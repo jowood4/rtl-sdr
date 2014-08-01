@@ -103,6 +103,7 @@ struct tuning_state
 	uint8_t *buf8;
 	int buf_len;
 	double rms_pow;
+	double rms_pow_dc;
 	//int *comp_fir;
 	//pthread_rwlock_t buf_lock;
 	//pthread_mutex_t buf_mutex;
@@ -301,7 +302,7 @@ void rms_power(struct tuning_state *ts)
 	//p -= (long)round(err);
 
 	ts->rms_pow = 10*log10(rms/127);
-	fprintf(file, "%.2f\n", 10*log10((rms - dc)/127));
+	ts->rms_pow_dc = 10*log10((rms-dc)/127);
 
 	//if (!peak_hold) {
 	//	ts->avg[0] += p;
@@ -323,46 +324,44 @@ void frequency_range(char *arg)
 	tune_count = 1;
 
 	/* build the array */
-	//for (i=0; i<tune_count; i++) {
 
-		i = 0;
-		ts = &tunes[i];
-		ts->freq = 1e9;//lower + i*bw_seen + bw_seen/2;
-		ts->rate = 2.56e6;//bw_used;
-		ts->bin_e = 10;//bin_e;
-		ts->samples = 0;
-		ts->crop = 0;
-		ts->downsample = 1;//downsample;
-		ts->downsample_passes = 0;//downsample_passes;
-		ts->avg = (long*)malloc((1<<ts->bin_e) * sizeof(long));
-		if (!ts->avg) {
-			fprintf(stderr, "Error: malloc.\n");
-			exit(1);
-		}
-		for (j=0; j<(1<<ts->bin_e); j++) {
-			ts->avg[j] = 0L;
-		}
+	i = 0;
+	ts = &tunes[i];
+	ts->freq = 1e9;//lower + i*bw_seen + bw_seen/2;
+	ts->rate = 2.56e6;//bw_used;
+	ts->bin_e = 10;//bin_e;
+	ts->samples = 0;
+	ts->crop = 0;
+	ts->downsample = 1;//downsample;
+	ts->downsample_passes = 0;//downsample_passes;
+	ts->avg = (long*)malloc((1<<ts->bin_e) * sizeof(long));
+	if (!ts->avg) {
+		fprintf(stderr, "Error: malloc.\n");
+		exit(1);
+	}
+	for (j=0; j<(1<<ts->bin_e); j++) {
+		ts->avg[j] = 0L;
+	}
 
-		buf_len = 2 * (1<<ts->bin_e) * ts->downsample;
-		if (buf_len < DEFAULT_BUF_LENGTH) {
-			buf_len = DEFAULT_BUF_LENGTH;
-		}
+	buf_len = 2 * (1<<ts->bin_e) * ts->downsample;
+	if (buf_len < DEFAULT_BUF_LENGTH) {
+		buf_len = DEFAULT_BUF_LENGTH;
+	}
 
-		ts->buf8 = (uint8_t*)malloc(buf_len * sizeof(uint8_t));
-		if (!ts->buf8) {
-			fprintf(stderr, "Error: malloc.\n");
-			exit(1);
-		}
-		ts->buf_len = buf_len;
+	ts->buf8 = (uint8_t*)malloc(buf_len * sizeof(uint8_t));
+	if (!ts->buf8) {
+		fprintf(stderr, "Error: malloc.\n");
+		exit(1);
+	}
+	ts->buf_len = buf_len;
 
-	//}
 	/* report */
 	fprintf(stderr, "Number of frequency hops: %i\n", tune_count);
 	fprintf(stderr, "Dongle bandwidth: %iHz\n", ts->rate);
 	fprintf(stderr, "Downsampling by: %ix\n", ts->downsample);
 	fprintf(stderr, "Cropping by: %0.2f%%\n", ts->crop*100);
-	fprintf(stderr, "Total FFT bins: %i\n", tune_count * (1<<ts->bin_e));
-	fprintf(stderr, "Logged FFT bins: %i\n", \
+	//fprintf(stderr, "Total FFT bins: %i\n", tune_count * (1<<ts->bin_e));
+	//fprintf(stderr, "Logged FFT bins: %i\n", \
 	  (int)((double)(tune_count * (1<<ts->bin_e)) * (1.0-ts->crop)));
 	//fprintf(stderr, "FFT bin size: %0.2fHz\n", bin_size);
 	fprintf(stderr, "Buffer size: %i bytes (%0.2fms)\n", buf_len, 1000 * 0.5 * (float)buf_len / (float)ts->rate);
@@ -380,93 +379,6 @@ void retune(rtlsdr_dev_t *d, int freq)
 		fprintf(stderr, "Error: bad retune.\n");}
 }
 
-void fifth_order(int16_t *data, int length)
-/* for half of interleaved data */
-{
-	int i;
-	int a, b, c, d, e, f;
-	a = data[0];
-	b = data[2];
-	c = data[4];
-	d = data[6];
-	e = data[8];
-	f = data[10];
-	/* a downsample should improve resolution, so don't fully shift */
-	/* ease in instead of being stateful */
-	data[0] = ((a+b)*10 + (c+d)*5 + d + f) >> 4;
-	data[2] = ((b+c)*10 + (a+d)*5 + e + f) >> 4;
-	data[4] = (a + (b+e)*5 + (c+d)*10 + f) >> 4;
-	for (i=12; i<length; i+=4) {
-		a = c;
-		b = d;
-		c = e;
-		d = f;
-		e = data[i-2];
-		f = data[i];
-		data[i/2] = (a + (b+e)*5 + (c+d)*10 + f) >> 4;
-	}
-}
-
-void remove_dc(int16_t *data, int length)
-/* works on interleaved data */
-{
-	int i;
-	int16_t ave;
-	long sum = 0L;
-	for (i=0; i < length; i+=2) {
-		sum += data[i];
-	}
-	ave = (int16_t)(sum / (long)(length));
-	if (ave == 0) {
-		return;}
-	for (i=0; i < length; i+=2) {
-		data[i] -= ave;
-	}
-}
-
-void generic_fir(int16_t *data, int length, int *fir)
-/* Okay, not at all generic.  Assumes length 9, fix that eventually. */
-{
-	int d, f, temp, sum;
-	int hist[9] = {0,};
-	/* cheat on the beginning, let it go unfiltered */
-	for (d=0; d<18; d+=2) {
-		hist[d/2] = data[d];
-	}
-	for (d=18; d<length; d+=2) {
-		temp = data[d];
-		sum = 0;
-		sum += (hist[0] + hist[8]) * fir[1];
-		sum += (hist[1] + hist[7]) * fir[2];
-		sum += (hist[2] + hist[6]) * fir[3];
-		sum += (hist[3] + hist[5]) * fir[4];
-		sum +=            hist[4]  * fir[5];
-		data[d] = (int16_t)(sum >> 15) ;
-		hist[0] = hist[1];
-		hist[1] = hist[2];
-		hist[2] = hist[3];
-		hist[3] = hist[4];
-		hist[4] = hist[5];
-		hist[5] = hist[6];
-		hist[6] = hist[7];
-		hist[7] = hist[8];
-		hist[8] = temp;
-	}
-}
-
-void downsample_iq(int16_t *data, int length)
-{
-	fifth_order(data, length);
-	//remove_dc(data, length);
-	fifth_order(data+1, length-1);
-	//remove_dc(data+1, length-1);
-}
-
-long real_conj(int16_t real, int16_t imag)
-/* real(n * conj(n)) */
-{
-	return ((long)real*(long)real + (long)imag*(long)imag);
-}
 
 void scanner(void)
 {
@@ -519,29 +431,12 @@ void csv_dbm(struct tuning_state *ts)
 	/* Hz low, Hz high, Hz step, samples, dbm, dbm, ... */
 	bin_count = (int)((double)len * (1.0 - ts->crop));
 	bw2 = (int)(((double)ts->rate * (double)bin_count) / (len * 2 * ds));
-	fprintf(file, "%i, %i, %.2f, %i, %i, %.2f", ts->freq - bw2, ts->freq + bw2,
-		(double)ts->rate / (double)(len*ds), ts->samples, len, ts->rms_pow);
-
-	// something seems off with the dbm math
-	i1 = 0 + (int)((double)len * ts->crop * 0.5);
-	i2 = (len-1) - (int)((double)len * ts->crop * 0.5);
-	for (i=i1; i<=i2; i++) {
-		dbm  = (double)ts->avg[i];
-		dbm /= (double)ts->rate;
-		dbm /= (double)ts->samples;
-		dbm  = 10 * log10(dbm);
-		//fprintf(file, "%.2f, ", dbm);
-	}
-	dbm = (double)ts->avg[i2] / ((double)ts->rate * (double)ts->samples);
-	if (ts->bin_e == 0) {
-		dbm = ((double)ts->avg[0] / \
-		((double)ts->rate * (double)ts->samples));}
-	dbm  = 10 * log10(dbm);
-	//fprintf(file, "%.2f\n", dbm);
-	for (i=0; i<len; i++) {
-		ts->avg[i] = 0L;
-	}
-	ts->samples = 0;
+	fprintf(file, "Lowest Frequency is %.2f MHz\n", (double)(ts->freq - bw2)/1e6);
+	fprintf(file, "Highest Frequency is %.2f MHz\n", (double)(ts->freq + bw2)/1e6);
+	fprintf(file, "FFT Bin Size would be %.2f MHz\n", (double)((double)ts->rate / (double)(len*ds))/1e6);
+	fprintf(file, "Number of Samples is %i\n", len);
+	fprintf(file, "RMS Voltage with DC is %.2f dBFS\n", (double)(ts->rms_pow));
+	fprintf(file, "RMS Voltage without DC is %.2f dBFS\n", (double)(ts->rms_pow_dc));
 }
 
 int main(int argc, char **argv)
