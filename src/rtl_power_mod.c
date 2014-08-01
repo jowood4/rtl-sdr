@@ -312,7 +312,7 @@ void rms_power(struct tuning_state *ts)
 	ts->samples += 1;
 }
 
-void frequency_range(char *arg)
+void frequency_range(freq, rate, bin)
 /* flesh out the tunes[] for scanning */
 // do we want the fewest ranges (easy) or the fewest bins (harder)?
 {
@@ -327,9 +327,34 @@ void frequency_range(char *arg)
 
 	i = 0;
 	ts = &tunes[i];
-	ts->freq = 1e9;//lower + i*bw_seen + bw_seen/2;
-	ts->rate = 2.56e6;//bw_used;
-	ts->bin_e = 10;//bin_e;
+
+	if(freq == 0)
+	{
+		ts->freq = 1e9;//lower + i*bw_seen + bw_seen/2;
+	}
+	else
+	{
+		ts->freq = freq;
+	}
+
+	if(rate == 0)
+	{
+		ts->rate = 2.56e6;//bw_used;
+	}
+	else
+	{
+		ts->rate = rate;
+	}
+
+	if(bin == 0)
+	{
+		ts->bin_e = 10;//bin_e;
+	}
+	else
+	{
+		ts->bin_e = bin;
+	}
+	
 	ts->samples = 0;
 	ts->crop = 0;
 	ts->downsample = 1;//downsample;
@@ -469,7 +494,27 @@ int main(int argc, char **argv)
 	double (*window_fn)(int, int) = rectangle;
 	freq_optarg = "";
 
-	frequency_range(freq_optarg);
+	double freq = 0;
+	double rate = 0;
+	int bin = 0;
+
+	while ((opt = getopt(argc, argv, "f:i:s:t:d:g:p:e:w:c:F:1PD:Oh")) != -1) {
+		switch (opt) {
+		case 'f': // lower:upper:bin_size
+			freq = atof(optarg);
+			break;
+		case 'r': // lower:upper:bin_size
+			freq = atof(optarg);
+			break;
+		case 'b': // lower:upper:bin_size
+			freq = atoi(optarg);
+			break;
+		default:
+			break;
+		}
+	}
+
+	frequency_range(freq, rate, bin);
 
 	if (tune_count == 0) {
 		usage();}
