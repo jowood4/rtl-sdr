@@ -291,7 +291,7 @@ void frequency_range(char *arg)
 // do we want the fewest ranges (easy) or the fewest bins (harder)?
 {
 	char *start, *stop, *step;
-	int i, j, bin_e, buf_len;
+	int i, j, buf_len;
 	//double bin_size;
 	struct tuning_state *ts;
 
@@ -309,16 +309,16 @@ void frequency_range(char *arg)
 		ts->crop = 0;
 		ts->downsample = 1;//downsample;
 		ts->downsample_passes = 0;//downsample_passes;
-		ts->avg = (long*)malloc((1<<bin_e) * sizeof(long));
+		ts->avg = (long*)malloc((1<<ts->bin_e) * sizeof(long));
 		if (!ts->avg) {
 			fprintf(stderr, "Error: malloc.\n");
 			exit(1);
 		}
-		for (j=0; j<(1<<bin_e); j++) {
+		for (j=0; j<(1<<ts->bin_e); j++) {
 			ts->avg[j] = 0L;
 		}
 
-		buf_len = 2 * (1<<bin_e) * downsample;
+		buf_len = 2 * (1<<ts->bin_e) * ts->downsample;
 		if (buf_len < DEFAULT_BUF_LENGTH) {
 			buf_len = DEFAULT_BUF_LENGTH;
 		}
@@ -508,7 +508,7 @@ void scanner(void)
 				//w /= (int32_t)(ds);
 				fft_buf[offset+j*2+1] = (int16_t)w;
 			}
-			fix_fft(fft_buf+offset, bin_e);
+			//fix_fft(fft_buf+offset, bin_e);
 			if (!peak_hold) {
 				for (j=0; j<bin_len; j++) {
 					ts->avg[j] += real_conj(fft_buf[offset+j*2], fft_buf[offset+j*2+1]);
@@ -595,7 +595,7 @@ int main(int argc, char **argv)
 	time_t exit_time = 0;
 	char t_str[50];
 	struct tm *cal_time;
-	double (*window_fn)(int, int) = rectangle;
+	//double (*window_fn)(int, int) = rectangle;
 	freq_optarg = "";
 
 	frequency_range(freq_optarg);
