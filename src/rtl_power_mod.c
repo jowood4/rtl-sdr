@@ -498,7 +498,7 @@ int main(int argc, char **argv)
 	double rate = 0;
 	int bin = 0;
 
-	while ((opt = getopt(argc, argv, "f:i:s:t:d:g:p:e:w:c:F:1PD:Oh")) != -1) {
+	while ((opt = getopt(argc, argv, "frb:")) != -1) {
 		switch (opt) {
 		case 'f': // lower:upper:bin_size
 			freq = atof(optarg);
