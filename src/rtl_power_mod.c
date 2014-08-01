@@ -628,6 +628,67 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
+
+	//Configure Tuner settings, if necessary
+	if (direct_sampling) {
+		verbose_direct_sampling(dev, direct_sampling);
+	}
+
+	if (offset_tuning) {
+		verbose_offset_tuning(dev);
+	}
+
+	/* Set the tuner gain */
+	if (gain == AUTO_GAIN) {
+		verbose_auto_gain(dev);
+	} else {
+		gain = nearest_gain(dev, gain);
+		verbose_gain_set(dev, gain);
+	}
+
+	if (!custom_ppm) {
+		verbose_ppm_eeprom(dev, &ppm_error);
+	}
+	verbose_ppm_set(dev, ppm_error);
+
+	/* Reset endpoint before we start reading from it (mandatory) */
+	verbose_reset_buffer(dev);
+
+	file = stdout;
+
+	/* actually do stuff */
+	rtlsdr_set_sample_rate(dev, (uint32_t)tunes[0].rate);
+	sine_table(tunes[0].bin_e);
+	next_tick = time(NULL) + interval;
+	if (exit_time) {
+		exit_time = time(NULL) + exit_time;}
+	fft_buf = malloc(tunes[0].buf_len * sizeof(int16_t));
+	length = 1 << tunes[0].bin_e;
+	window_coefs = malloc(length * sizeof(int));
+	for (i=0; i<length; i++) {
+		window_coefs[i] = (int)(256*window_fn(i, length));
+	}
+	while (!do_exit) {
+		scanner();
+		time_now = time(NULL);
+		if (time_now < next_tick) {
+			continue;}
+		// time, Hz low, Hz high, Hz step, samples, dbm, dbm, ...
+		cal_time = localtime(&time_now);
+		strftime(t_str, 50, "%Y-%m-%d, %H:%M:%S", cal_time);
+		for (i=0; i<tune_count; i++) {
+			fprintf(file, "%s, ", t_str);
+			csv_dbm(&tunes[i]);
+		}
+		fflush(file);
+		while (time(NULL) >= next_tick) {
+			next_tick += interval;}
+		if (single) {
+			do_exit = 1;}
+		if (exit_time && time(NULL) >= exit_time) {
+			do_exit = 1;}
+	}
+
 	rtlsdr_close(dev);
 
 	return r >= 0 ? r : -r;
