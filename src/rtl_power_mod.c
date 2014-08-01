@@ -257,145 +257,6 @@ inline int16_t FIX_MPY(int16_t a, int16_t b)
 	return (c >> 1) + b;
 }
 
-int fix_fft(int16_t iq[], int m)
-/* interleaved iq[], 0 <= n < 2**m, changes in place */
-{
-	int mr, nn, i, j, l, k, istep, n, shift;
-	int16_t qr, qi, tr, ti, wr, wi;
-	n = 1 << m;
-	if (n > N_WAVE)
-		{return -1;}
-	mr = 0;
-	nn = n - 1;
-	/* decimation in time - re-order data */
-	for (m=1; m<=nn; ++m) {
-		l = n;
-		do
-			{l >>= 1;}
-		while (mr+l > nn);
-		mr = (mr & (l-1)) + l;
-		if (mr <= m)
-			{continue;}
-		// real = 2*m, imag = 2*m+1
-		tr = iq[2*m];
-		iq[2*m] = iq[2*mr];
-		iq[2*mr] = tr;
-		ti = iq[2*m+1];
-		iq[2*m+1] = iq[2*mr+1];
-		iq[2*mr+1] = ti;
-	}
-	l = 1;
-	k = LOG2_N_WAVE-1;
-	while (l < n) {
-		shift = 1;
-		istep = l << 1;
-		for (m=0; m<l; ++m) {
-			j = m << k;
-			wr =  Sinewave[j+N_WAVE/4];
-			wi = -Sinewave[j];
-			if (shift) {
-				wr >>= 1; wi >>= 1;}
-			for (i=m; i<n; i+=istep) {
-				j = i + l;
-				tr = FIX_MPY(wr,iq[2*j]) - FIX_MPY(wi,iq[2*j+1]);
-				ti = FIX_MPY(wr,iq[2*j+1]) + FIX_MPY(wi,iq[2*j]);
-				qr = iq[2*i];
-				qi = iq[2*i+1];
-				if (shift) {
-					qr >>= 1; qi >>= 1;}
-				iq[2*j] = qr - tr;
-				iq[2*j+1] = qi - ti;
-				iq[2*i] = qr + tr;
-				iq[2*i+1] = qi + ti;
-			}
-		}
-		--k;
-		l = istep;
-	}
-	return 0;
-}
-
-double rectangle(int i, int length)
-{
-	return 1.0;
-}
-
-double hamming(int i, int length)
-{
-	double a, b, w, N1;
-	a = 25.0/46.0;
-	b = 21.0/46.0;
-	N1 = (double)(length-1);
-	w = a - b*cos(2*i*M_PI/N1);
-	return w;
-}
-
-double blackman(int i, int length)
-{
-	double a0, a1, a2, w, N1;
-	a0 = 7938.0/18608.0;
-	a1 = 9240.0/18608.0;
-	a2 = 1430.0/18608.0;
-	N1 = (double)(length-1);
-	w = a0 - a1*cos(2*i*M_PI/N1) + a2*cos(4*i*M_PI/N1);
-	return w;
-}
-
-double blackman_harris(int i, int length)
-{
-	double a0, a1, a2, a3, w, N1;
-	a0 = 0.35875;
-	a1 = 0.48829;
-	a2 = 0.14128;
-	a3 = 0.01168;
-	N1 = (double)(length-1);
-	w = a0 - a1*cos(2*i*M_PI/N1) + a2*cos(4*i*M_PI/N1) - a3*cos(6*i*M_PI/N1);
-	return w;
-}
-
-double hann_poisson(int i, int length)
-{
-	double a, N1, w;
-	a = 2.0;
-	N1 = (double)(length-1);
-	w = 0.5 * (1 - cos(2*M_PI*i/N1)) * \
-	    pow(M_E, (-a*(double)abs((int)(N1-1-2*i)))/N1);
-	return w;
-}
-
-double youssef(int i, int length)
-/* really a blackman-harris-poisson window, but that is a mouthful */
-{
-	double a, a0, a1, a2, a3, w, N1;
-	a0 = 0.35875;
-	a1 = 0.48829;
-	a2 = 0.14128;
-	a3 = 0.01168;
-	N1 = (double)(length-1);
-	w = a0 - a1*cos(2*i*M_PI/N1) + a2*cos(4*i*M_PI/N1) - a3*cos(6*i*M_PI/N1);
-	a = 0.0025;
-	w *= pow(M_E, (-a*(double)abs((int)(N1-1-2*i)))/N1);
-	return w;
-}
-
-double kaiser(int i, int length)
-// todo, become more smart
-{
-	return 1.0;
-}
-
-double bartlett(int i, int length)
-{
-	double N1, L, w;
-	L = (double)length;
-	N1 = L - 1;
-	w = (i - N1/2) / (L/2);
-	if (w < 0) {
-		w = -w;}
-	w = 1 - w;
-	return w;
-}
-
 void rms_power(struct tuning_state *ts)
 /* for bins between 1MHz and 2MHz */
 {
@@ -425,83 +286,29 @@ void rms_power(struct tuning_state *ts)
 	ts->samples += 1;
 }
 
-void frequency_range(char *arg, double crop)
+void frequency_range(char *arg)
 /* flesh out the tunes[] for scanning */
 // do we want the fewest ranges (easy) or the fewest bins (harder)?
 {
 	char *start, *stop, *step;
-	int i, j, upper, lower, max_size, bw_seen, bw_used, bin_e, buf_len;
-	int downsample, downsample_passes;
-	double bin_size;
+	int i, j, bin_e, buf_len;
+	//double bin_size;
 	struct tuning_state *ts;
-	/* hacky string parsing */
-	start = arg;
-	stop = strchr(start, ':') + 1;
-	stop[-1] = '\0';
-	step = strchr(stop, ':') + 1;
-	step[-1] = '\0';
-	lower = (int)atofs(start);
-	upper = (int)atofs(stop);
-	max_size = (int)atofs(step);
-	stop[-1] = ':';
-	step[-1] = ':';
-	downsample = 1;
-	downsample_passes = 0;
-	/* evenly sized ranges, as close to MAXIMUM_RATE as possible */
-	// todo, replace loop with algebra
-	for (i=1; i<1500; i++) {
-		bw_seen = (upper - lower) / i;
-		bw_used = (int)((double)(bw_seen) / (1.0 - crop));
-		if (bw_used > MAXIMUM_RATE) {
-			continue;}
-		tune_count = i;
-		break;
-	}
-	/* unless small bandwidth */
-	if (bw_used < MINIMUM_RATE) {
-		tune_count = 1;
-		downsample = MAXIMUM_RATE / bw_used;
-		bw_used = bw_used * downsample;
-	}
-	if (!boxcar && downsample > 1) {
-		downsample_passes = (int)log2(downsample);
-		downsample = 1 << downsample_passes;
-		bw_used = (int)((double)(bw_seen * downsample) / (1.0 - crop));
-	}
-	/* number of bins is power-of-two, bin size is under limit */
-	// todo, replace loop with log2
-	for (i=1; i<=21; i++) {
-		bin_e = i;
-		bin_size = (double)bw_used / (double)((1<<i) * downsample);
-		if (bin_size <= (double)max_size) {
-			break;}
-	}
-	/* unless giant bins */
-	if (max_size >= MINIMUM_RATE) {
-		bw_seen = max_size;
-		bw_used = max_size;
-		tune_count = (upper - lower) / bw_seen;
-		bin_e = 0;
-		crop = 0;
-	}
-	if (tune_count > MAX_TUNES) {
-		fprintf(stderr, "Error: bandwidth too wide.\n");
-		exit(1);
-	}
-	buf_len = 2 * (1<<bin_e) * downsample;
-	if (buf_len < DEFAULT_BUF_LENGTH) {
-		buf_len = DEFAULT_BUF_LENGTH;
-	}
+
+	tune_count = 1;
+
 	/* build the array */
-	for (i=0; i<tune_count; i++) {
+	//for (i=0; i<tune_count; i++) {
+
+		i = 0;
 		ts = &tunes[i];
-		ts->freq = lower + i*bw_seen + bw_seen/2;
-		ts->rate = bw_used;
-		ts->bin_e = bin_e;
+		ts->freq = 1e9;//lower + i*bw_seen + bw_seen/2;
+		ts->rate = 2.56e6;//bw_used;
+		ts->bin_e = 1024;//bin_e;
 		ts->samples = 0;
-		ts->crop = crop;
-		ts->downsample = downsample;
-		ts->downsample_passes = downsample_passes;
+		ts->crop = 0;
+		ts->downsample = 1;//downsample;
+		ts->downsample_passes = 0;//downsample_passes;
 		ts->avg = (long*)malloc((1<<bin_e) * sizeof(long));
 		if (!ts->avg) {
 			fprintf(stderr, "Error: malloc.\n");
@@ -510,23 +317,30 @@ void frequency_range(char *arg, double crop)
 		for (j=0; j<(1<<bin_e); j++) {
 			ts->avg[j] = 0L;
 		}
+
+		buf_len = 2 * (1<<bin_e) * downsample;
+		if (buf_len < DEFAULT_BUF_LENGTH) {
+			buf_len = DEFAULT_BUF_LENGTH;
+		}
+
 		ts->buf8 = (uint8_t*)malloc(buf_len * sizeof(uint8_t));
 		if (!ts->buf8) {
 			fprintf(stderr, "Error: malloc.\n");
 			exit(1);
 		}
 		ts->buf_len = buf_len;
-	}
+
+	//}
 	/* report */
 	fprintf(stderr, "Number of frequency hops: %i\n", tune_count);
-	fprintf(stderr, "Dongle bandwidth: %iHz\n", bw_used);
-	fprintf(stderr, "Downsampling by: %ix\n", downsample);
-	fprintf(stderr, "Cropping by: %0.2f%%\n", crop*100);
-	fprintf(stderr, "Total FFT bins: %i\n", tune_count * (1<<bin_e));
+	fprintf(stderr, "Dongle bandwidth: %iHz\n", ts->rate);
+	fprintf(stderr, "Downsampling by: %ix\n", ts->downsample);
+	fprintf(stderr, "Cropping by: %0.2f%%\n", ts->crop*100);
+	fprintf(stderr, "Total FFT bins: %i\n", tune_count * (1<<ts->bin_e));
 	fprintf(stderr, "Logged FFT bins: %i\n", \
-	  (int)((double)(tune_count * (1<<bin_e)) * (1.0-crop)));
-	fprintf(stderr, "FFT bin size: %0.2fHz\n", bin_size);
-	fprintf(stderr, "Buffer size: %i bytes (%0.2fms)\n", buf_len, 1000 * 0.5 * (float)buf_len / (float)bw_used);
+	  (int)((double)(tune_count * (1<<ts->bin_e)) * (1.0-ts->crop)));
+	//fprintf(stderr, "FFT bin size: %0.2fHz\n", bin_size);
+	fprintf(stderr, "Buffer size: %i bytes (%0.2fms)\n", buf_len, 1000 * 0.5 * (float)buf_len / (float)ts->rate);
 }
 
 void retune(rtlsdr_dev_t *d, int freq)
@@ -784,93 +598,7 @@ int main(int argc, char **argv)
 	double (*window_fn)(int, int) = rectangle;
 	freq_optarg = "";
 
-	while ((opt = getopt(argc, argv, "f:i:s:t:d:g:p:e:w:c:F:1PD:Oh")) != -1) {
-		switch (opt) {
-		case 'f': // lower:upper:bin_size
-			freq_optarg = strdup(optarg);
-			f_set = 1;
-			break;
-		case 'd':
-			dev_index = verbose_device_search(optarg);
-			dev_given = 1;
-			break;
-		case 'g':
-			gain = (int)(atof(optarg) * 10);
-			break;
-		case 'c':
-			crop = atofp(optarg);
-			break;
-		case 'i':
-			interval = (int)round(atoft(optarg));
-			break;
-		case 'e':
-			exit_time = (time_t)((int)round(atoft(optarg)));
-			break;
-		case 's':
-			if (strcmp("avg",  optarg) == 0) {
-				smoothing = 0;}
-			if (strcmp("iir",  optarg) == 0) {
-				smoothing = 1;}
-			break;
-		case 'w':
-			if (strcmp("rectangle",  optarg) == 0) {
-				window_fn = rectangle;}
-			if (strcmp("hamming",  optarg) == 0) {
-				window_fn = hamming;}
-			if (strcmp("blackman",  optarg) == 0) {
-				window_fn = blackman;}
-			if (strcmp("blackman-harris",  optarg) == 0) {
-				window_fn = blackman_harris;}
-			if (strcmp("hann-poisson",  optarg) == 0) {
-				window_fn = hann_poisson;}
-			if (strcmp("youssef",  optarg) == 0) {
-				window_fn = youssef;}
-			if (strcmp("kaiser",  optarg) == 0) {
-				window_fn = kaiser;}
-			if (strcmp("bartlett",  optarg) == 0) {
-				window_fn = bartlett;}
-			break;
-		case 't':
-			fft_threads = atoi(optarg);
-			break;
-		case 'p':
-			ppm_error = atoi(optarg);
-			custom_ppm = 1;
-			break;
-		case '1':
-			single = 1;
-			break;
-		case 'P':
-			peak_hold = 1;
-			break;
-		case 'D':
-			direct_sampling = atoi(optarg);
-			break;
-		case 'O':
-			offset_tuning = 1;
-			break;
-		case 'F':
-			boxcar = 0;
-			comp_fir_size = atoi(optarg);
-			break;
-		case 'h':
-		default:
-			usage();
-			break;
-		}
-	}
-
-	if (!f_set) {
-		fprintf(stderr, "No frequency range provided.\n");
-		exit(1);
-	}
-
-	if ((crop < 0.0) || (crop > 1.0)) {
-		fprintf(stderr, "Crop value outside of 0 to 1.\n");
-		exit(1);
-	}
-
-	frequency_range(freq_optarg, crop);
+	frequency_range(freq_optarg);
 
 	if (tune_count == 0) {
 		usage();}
@@ -883,9 +611,9 @@ int main(int argc, char **argv)
 
 	if (interval < 1) {
 		interval = 1;}
-
 	fprintf(stderr, "Reporting every %i seconds\n", interval);
 
+	//Find device if not specified
 	if (!dev_given) {
 		dev_index = verbose_device_search("0");
 	}
@@ -899,106 +627,9 @@ int main(int argc, char **argv)
 		fprintf(stderr, "Failed to open rtlsdr device #%d.\n", dev_index);
 		exit(1);
 	}
-#ifndef _WIN32
-	sigact.sa_handler = sighandler;
-	sigemptyset(&sigact.sa_mask);
-	sigact.sa_flags = 0;
-	sigaction(SIGINT, &sigact, NULL);
-	sigaction(SIGTERM, &sigact, NULL);
-	sigaction(SIGQUIT, &sigact, NULL);
-	sigaction(SIGPIPE, &sigact, NULL);
-#else
-	SetConsoleCtrlHandler( (PHANDLER_ROUTINE) sighandler, TRUE );
-#endif
-
-	if (direct_sampling) {
-		verbose_direct_sampling(dev, direct_sampling);
-	}
-
-	if (offset_tuning) {
-		verbose_offset_tuning(dev);
-	}
-
-	/* Set the tuner gain */
-	if (gain == AUTO_GAIN) {
-		verbose_auto_gain(dev);
-	} else {
-		gain = nearest_gain(dev, gain);
-		verbose_gain_set(dev, gain);
-	}
-
-	if (!custom_ppm) {
-		verbose_ppm_eeprom(dev, &ppm_error);
-	}
-	verbose_ppm_set(dev, ppm_error);
-
-	if (strcmp(filename, "-") == 0) { /* Write log to stdout */
-		file = stdout;
-#ifdef _WIN32
-		// Is this necessary?  Output is ascii.
-		_setmode(_fileno(file), _O_BINARY);
-#endif
-	} else {
-		file = fopen(filename, "wb");
-		if (!file) {
-			fprintf(stderr, "Failed to open %s\n", filename);
-			exit(1);
-		}
-	}
-
-	/* Reset endpoint before we start reading from it (mandatory) */
-	verbose_reset_buffer(dev);
-
-	/* actually do stuff */
-	rtlsdr_set_sample_rate(dev, (uint32_t)tunes[0].rate);
-	sine_table(tunes[0].bin_e);
-	next_tick = time(NULL) + interval;
-	if (exit_time) {
-		exit_time = time(NULL) + exit_time;}
-	fft_buf = malloc(tunes[0].buf_len * sizeof(int16_t));
-	length = 1 << tunes[0].bin_e;
-	window_coefs = malloc(length * sizeof(int));
-	for (i=0; i<length; i++) {
-		window_coefs[i] = (int)(256*window_fn(i, length));
-	}
-	while (!do_exit) {
-		scanner();
-		time_now = time(NULL);
-		if (time_now < next_tick) {
-			continue;}
-		// time, Hz low, Hz high, Hz step, samples, dbm, dbm, ...
-		cal_time = localtime(&time_now);
-		strftime(t_str, 50, "%Y-%m-%d, %H:%M:%S", cal_time);
-		for (i=0; i<tune_count; i++) {
-			fprintf(file, "%s, ", t_str);
-			csv_dbm(&tunes[i]);
-		}
-		fflush(file);
-		while (time(NULL) >= next_tick) {
-			next_tick += interval;}
-		if (single) {
-			do_exit = 1;}
-		if (exit_time && time(NULL) >= exit_time) {
-			do_exit = 1;}
-	}
-
-	/* clean up */
-
-	if (do_exit) {
-		fprintf(stderr, "\nUser cancel, exiting...\n");}
-	else {
-		fprintf(stderr, "\nLibrary error %d, exiting...\n", r);}
-
-	if (file != stdout) {
-		fclose(file);}
 
 	rtlsdr_close(dev);
-	free(fft_buf);
-	free(window_coefs);
-	//for (i=0; i<tune_count; i++) {
-	//	free(tunes[i].avg);
-	//	free(tunes[i].buf8);
-	//}
+
 	return r >= 0 ? r : -r;
 }
 
