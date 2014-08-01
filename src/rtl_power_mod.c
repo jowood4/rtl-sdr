@@ -268,12 +268,17 @@ void rms_power(struct tuning_state *ts)
 	int ln, lp;
 	double dc, err;
 
+	for (i=0; i<10; i++) {
+		fprintf(file, "%i\n", buf[i]);
+	}
+
 	p = t = 0L;
 	for (i=0; i<buf_len; i++) {
 		s = (int)buf[i] - 127;
 		t += (long)s;
 		p += (long)(s * s);
 	}
+
 	/* correct for dc offset in squares */
 	dc = (double)t / (double)buf_len;
 	err = t * 2 * dc - dc * dc * buf_len;
@@ -456,7 +461,7 @@ void scanner(void)
 	bin_len = 1 << bin_e;
 	buf_len = tunes[0].buf_len;
 
-	ts = &tunes[i];
+	ts = &tunes[0];
 
 	//Make sure tuner is set to correct frequency
 	f = (int)rtlsdr_get_center_freq(dev);
