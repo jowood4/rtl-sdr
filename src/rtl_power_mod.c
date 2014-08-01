@@ -458,7 +458,7 @@ void csv_dbm(struct tuning_state *ts)
 	bw2 = (int)(((double)ts->rate * (double)bin_count) / (len * 2 * ds));
 	fprintf(file, "Lowest Frequency is %.2f MHz\n", (double)(ts->freq - bw2)/1e6);
 	fprintf(file, "Highest Frequency is %.2f MHz\n", (double)(ts->freq + bw2)/1e6);
-	fprintf(file, "FFT Bin Size would be %.2f MHz\n", (double)((double)ts->rate / (double)(len*ds))/1e6);
+	fprintf(file, "FFT Bin Size would be %.2f kHz\n", (double)(ts->rate / len)/1e3);
 	fprintf(file, "Number of Samples is %i\n", len);
 	fprintf(file, "RMS Voltage with DC is %.2f dBFS\n", (double)(ts->rms_pow));
 	fprintf(file, "RMS Voltage without DC is %.2f dBFS\n", (double)(ts->rms_pow_dc));
@@ -504,10 +504,10 @@ int main(int argc, char **argv)
 			freq = atof(optarg);
 			break;
 		case 'r': // lower:upper:bin_size
-			freq = atof(optarg);
+			rate = atof(optarg);
 			break;
 		case 'b': // lower:upper:bin_size
-			freq = atoi(optarg);
+			bin = atoi(optarg);
 			break;
 		default:
 			break;
