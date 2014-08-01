@@ -549,8 +549,8 @@ void csv_dbm(struct tuning_state *ts)
 	/* Hz low, Hz high, Hz step, samples, dbm, dbm, ... */
 	bin_count = (int)((double)len * (1.0 - ts->crop));
 	bw2 = (int)(((double)ts->rate * (double)bin_count) / (len * 2 * ds));
-	fprintf(file, "%i, %i, %.2f, %i, ", ts->freq - bw2, ts->freq + bw2,
-		(double)ts->rate / (double)(len*ds), ts->samples);
+	fprintf(file, "%i, %i, %.2f, %i, %i, ", ts->freq - bw2, ts->freq + bw2,
+		(double)ts->rate / (double)(len*ds), ts->samples, len);
 
 	// something seems off with the dbm math
 	i1 = 0 + (int)((double)len * ts->crop * 0.5);
@@ -560,7 +560,7 @@ void csv_dbm(struct tuning_state *ts)
 		dbm /= (double)ts->rate;
 		dbm /= (double)ts->samples;
 		dbm  = 10 * log10(dbm);
-		fprintf(file, "%.2f, ", dbm);
+		//fprintf(file, "%.2f, ", dbm);
 	}
 	dbm = (double)ts->avg[i2] / ((double)ts->rate * (double)ts->samples);
 	if (ts->bin_e == 0) {
@@ -677,8 +677,8 @@ int main(int argc, char **argv)
 	//while (!do_exit) {
 		scanner();
 		time_now = time(NULL);
-		if (time_now < next_tick) {
-			continue;}
+		//if (time_now < next_tick) {
+		//	continue;}
 		// time, Hz low, Hz high, Hz step, samples, dbm, dbm, ...
 		cal_time = localtime(&time_now);
 		strftime(t_str, 50, "%Y-%m-%d, %H:%M:%S", cal_time);
@@ -696,6 +696,8 @@ int main(int argc, char **argv)
 	//}
 
 	rtlsdr_close(dev);
+	free(fft_buf);
+	free(window_coefs);
 
 	return r >= 0 ? r : -r;
 }
