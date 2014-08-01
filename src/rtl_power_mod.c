@@ -523,6 +523,11 @@ void scanner(void)
 	}
 }
 
+double rectangle(int i, int length)
+{
+	return 1.0;
+}
+
 void csv_dbm(struct tuning_state *ts)
 {
 	int i, len, ds, i1, i2, bw2, bin_count;
@@ -595,7 +600,7 @@ int main(int argc, char **argv)
 	time_t exit_time = 0;
 	char t_str[50];
 	struct tm *cal_time;
-	//double (*window_fn)(int, int) = rectangle;
+	double (*window_fn)(int, int) = rectangle;
 	freq_optarg = "";
 
 	frequency_range(freq_optarg);
