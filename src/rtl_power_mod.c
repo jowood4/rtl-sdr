@@ -304,7 +304,7 @@ void frequency_range(char *arg)
 		ts = &tunes[i];
 		ts->freq = 1e9;//lower + i*bw_seen + bw_seen/2;
 		ts->rate = 2.56e6;//bw_used;
-		ts->bin_e = 1024;//bin_e;
+		ts->bin_e = 10;//bin_e;
 		ts->samples = 0;
 		ts->crop = 0;
 		ts->downsample = 1;//downsample;
