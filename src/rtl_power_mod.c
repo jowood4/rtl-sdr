@@ -312,7 +312,7 @@ void rms_power(struct tuning_state *ts)
 	ts->samples += 1;
 }
 
-void frequency_range(freq, rate, bin)
+void frequency_range(double freq, double rate, int bin)
 /* flesh out the tunes[] for scanning */
 // do we want the fewest ranges (easy) or the fewest bins (harder)?
 {
