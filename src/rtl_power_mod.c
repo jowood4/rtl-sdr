@@ -261,30 +261,43 @@ inline int16_t FIX_MPY(int16_t a, int16_t b)
 void rms_power(struct tuning_state *ts)
 /* for bins between 1MHz and 2MHz */
 {
-	int i, s;
+	int i, s1, s2;
 	uint8_t *buf = ts->buf8;
 	int buf_len = ts->buf_len;
-	long p, t;
-	int ln, lp;
-	double dc, err;
+	//long p, t;
+	//int ln, lp;
+	//double dc, err;
+	long rms_sum, dc_sum, s1_2, s2_2;
+	long rms, dc;
 
-	for (i=0; i<10; i++) {
-		fprintf(file, "%i\n", buf[i]);
+	//for (i=0; i<10; i++) {
+	//	fprintf(file, "%i\n", buf[i]);
+	//}
+
+	//p = t = 0L;
+	rms_sum = 0;
+	dc_sum = 0;
+	for (i=0; i<buf_len; i=i+2) {
+
+		s1 = (int)buf[i] - 127;
+		s2 = (int)buf[i+1] - 127;
+		s1_2 = s1 * s1;
+		s2_2 = s2 * s2;
+
+		dc_sum += sqrt(s1_2 + s2_2);
+		rms_sum += s1_2 + s2_2;
+		
 	}
 
-	p = t = 0L;
-	for (i=0; i<buf_len; i++) {
-		s = (int)buf[i] - 127;
-		t += (long)s;
-		p += (long)(s * s);
-	}
+	rms = sqrt(rms_sum);
+	dc = dc_sum / (buf_len/2);
 
 	/* correct for dc offset in squares */
-	dc = (double)t / (double)buf_len;
-	err = t * 2 * dc - dc * dc * buf_len;
-	p -= (long)round(err);
+	//dc = (double)t / (double)buf_len;
+	//err = t * 2 * dc - dc * dc * buf_len;
+	//p -= (long)round(err);
 
-	ts->rms_pow = p;
+	ts->rms_pow = rms - dc;
 
 	if (!peak_hold) {
 		ts->avg[0] += p;
@@ -473,9 +486,7 @@ void scanner(void)
 		fprintf(stderr, "Error: dropped samples.\n");}
 	
 	/* rms */
-	if (bin_len == 1) {
-		rms_power(ts);
-	}
+	rms_power(ts);
 }
 
 double rectangle(int i, int length)
