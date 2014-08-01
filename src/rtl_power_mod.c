@@ -494,14 +494,14 @@ int main(int argc, char **argv)
 	double (*window_fn)(int, int) = rectangle;
 	freq_optarg = "";
 
-	double freq = 0;
+	double freq1 = 0;
 	double rate = 0;
 	int bin = 0;
 
-	while ((opt = getopt(argc, argv, "frb:")) != -1) {
+	while ((opt = getopt(argc, argv, "f:r:b:")) != -1) {
 		switch (opt) {
 		case 'f': // lower:upper:bin_size
-			freq = atof(optarg);
+			freq1 = atof(optarg);
 			break;
 		case 'r': // lower:upper:bin_size
 			rate = atof(optarg);
@@ -514,7 +514,7 @@ int main(int argc, char **argv)
 		}
 	}
 
-	frequency_range(freq, rate, bin);
+	frequency_range(freq1, rate, bin);
 
 	if (tune_count == 0) {
 		usage();}
