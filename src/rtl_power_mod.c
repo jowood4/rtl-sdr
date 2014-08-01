@@ -551,6 +551,7 @@ void csv_dbm(struct tuning_state *ts)
 	bw2 = (int)(((double)ts->rate * (double)bin_count) / (len * 2 * ds));
 	fprintf(file, "%i, %i, %.2f, %i, ", ts->freq - bw2, ts->freq + bw2,
 		(double)ts->rate / (double)(len*ds), ts->samples);
+
 	// something seems off with the dbm math
 	i1 = 0 + (int)((double)len * ts->crop * 0.5);
 	i2 = (len-1) - (int)((double)len * ts->crop * 0.5);
@@ -566,7 +567,7 @@ void csv_dbm(struct tuning_state *ts)
 		dbm = ((double)ts->avg[0] / \
 		((double)ts->rate * (double)ts->samples));}
 	dbm  = 10 * log10(dbm);
-	fprintf(file, "%.2f\n", dbm);
+	//fprintf(file, "%.2f\n", dbm);
 	for (i=0; i<len; i++) {
 		ts->avg[i] = 0L;
 	}
@@ -673,7 +674,7 @@ int main(int argc, char **argv)
 	for (i=0; i<length; i++) {
 		window_coefs[i] = (int)(256*window_fn(i, length));
 	}
-	while (!do_exit) {
+	//while (!do_exit) {
 		scanner();
 		time_now = time(NULL);
 		if (time_now < next_tick) {
@@ -692,7 +693,7 @@ int main(int argc, char **argv)
 			do_exit = 1;}
 		if (exit_time && time(NULL) >= exit_time) {
 			do_exit = 1;}
-	}
+	//}
 
 	rtlsdr_close(dev);
 
