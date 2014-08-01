@@ -386,8 +386,7 @@ void frequency_range(double freq, double rate, int bin)
 	fprintf(stderr, "Downsampling by: %ix\n", ts->downsample);
 	fprintf(stderr, "Cropping by: %0.2f%%\n", ts->crop*100);
 	//fprintf(stderr, "Total FFT bins: %i\n", tune_count * (1<<ts->bin_e));
-	//fprintf(stderr, "Logged FFT bins: %i\n", \
-	  (int)((double)(tune_count * (1<<ts->bin_e)) * (1.0-ts->crop)));
+	//fprintf(stderr, "Logged FFT bins: %i\n", (int)((double)(tune_count * (1<<ts->bin_e)) * (1.0-ts->crop)));
 	//fprintf(stderr, "FFT bin size: %0.2fHz\n", bin_size);
 	fprintf(stderr, "Buffer size: %i bytes (%0.2fms)\n", buf_len, 1000 * 0.5 * (float)buf_len / (float)ts->rate);
 }
