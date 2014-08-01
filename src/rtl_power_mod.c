@@ -267,16 +267,17 @@ void rms_power(struct tuning_state *ts)
 	//long p, t;
 	//int ln, lp;
 	//double dc, err;
-	long rms_sum, dc_sum, s1_2, s2_2;
-	long rms, dc;
+	double rms_sum, dc_sum, s1_2, s2_2;
+	double rms, dc;
 
 	//for (i=0; i<10; i++) {
-	//	fprintf(file, "%i\n", buf[i]);
+	//	fprintf(file, "%i\n", buf[i]-127);
 	//}
 
 	//p = t = 0L;
 	rms_sum = 0;
 	dc_sum = 0;
+	//for (i=0; i<10; i=i+2) {
 	for (i=0; i<buf_len; i=i+2) {
 
 		s1 = (int)buf[i] - 127;
@@ -286,10 +287,12 @@ void rms_power(struct tuning_state *ts)
 
 		dc_sum += sqrt(s1_2 + s2_2);
 		rms_sum += s1_2 + s2_2;
+		//fprintf(file, "%.2f\n", dc_sum);
+		//fprintf(file, "%.2f\n", rms_sum);
 		
 	}
 
-	rms = sqrt(rms_sum);
+	rms = sqrt(rms_sum/ (buf_len/2));
 	dc = dc_sum / (buf_len/2);
 
 	/* correct for dc offset in squares */
@@ -297,13 +300,14 @@ void rms_power(struct tuning_state *ts)
 	//err = t * 2 * dc - dc * dc * buf_len;
 	//p -= (long)round(err);
 
-	ts->rms_pow = rms - dc;
+	ts->rms_pow = 10*log10(rms/127);
+	fprintf(file, "%.2f\n", 10*log10((rms - dc)/127));
 
-	if (!peak_hold) {
-		ts->avg[0] += p;
-	} else {
-		ts->avg[0] = MAX(ts->avg[0], p);
-	}
+	//if (!peak_hold) {
+	//	ts->avg[0] += p;
+	//} else {
+	//	ts->avg[0] = MAX(ts->avg[0], p);
+	//}
 	ts->samples += 1;
 }
 
