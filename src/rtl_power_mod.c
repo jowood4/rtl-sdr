@@ -102,6 +102,7 @@ struct tuning_state
 	/* having the iq buffer here is wasteful, but will avoid contention */
 	uint8_t *buf8;
 	int buf_len;
+	double rms_pow;
 	//int *comp_fir;
 	//pthread_rwlock_t buf_lock;
 	//pthread_mutex_t buf_mutex;
@@ -278,6 +279,8 @@ void rms_power(struct tuning_state *ts)
 	err = t * 2 * dc - dc * dc * buf_len;
 	p -= (long)round(err);
 
+	ts->rms_pow = p;
+
 	if (!peak_hold) {
 		ts->avg[0] += p;
 	} else {
@@ -448,78 +451,25 @@ void scanner(void)
 	int i, j, j2, f, n_read, offset, bin_e, bin_len, buf_len, ds, ds_p;
 	int32_t w;
 	struct tuning_state *ts;
+
 	bin_e = tunes[0].bin_e;
 	bin_len = 1 << bin_e;
 	buf_len = tunes[0].buf_len;
-	for (i=0; i<tune_count; i++) {
-		if (do_exit >= 2)
-			{return;}
-		ts = &tunes[i];
-		f = (int)rtlsdr_get_center_freq(dev);
-		if (f != ts->freq) {
-			retune(dev, ts->freq);}
-		rtlsdr_read_sync(dev, ts->buf8, buf_len, &n_read);
-		if (n_read != buf_len) {
-			fprintf(stderr, "Error: dropped samples.\n");}
-		/* rms */
-		if (bin_len == 1) {
-			rms_power(ts);
-			continue;
-		}
-		/* prep for fft */
-		for (j=0; j<buf_len; j++) {
-			fft_buf[j] = (int16_t)ts->buf8[j] - 127;
-		}
-		ds = ts->downsample;
-		ds_p = ts->downsample_passes;
-		if (boxcar && ds > 1) {
-			j=2, j2=0;
-			while (j < buf_len) {
-				fft_buf[j2]   += fft_buf[j];
-				fft_buf[j2+1] += fft_buf[j+1];
-				fft_buf[j] = 0;
-				fft_buf[j+1] = 0;
-				j += 2;
-				if (j % (ds*2) == 0) {
-					j2 += 2;}
-			}
-		} else if (ds_p) {  /* recursive */
-			for (j=0; j < ds_p; j++) {
-				downsample_iq(fft_buf, buf_len >> j);
-			}
-			/* droop compensation */
-			if (comp_fir_size == 9 && ds_p <= CIC_TABLE_MAX) {
-				generic_fir(fft_buf, buf_len >> j, cic_9_tables[ds_p]);
-				generic_fir(fft_buf+1, (buf_len >> j)-1, cic_9_tables[ds_p]);
-			}
-		}
-		remove_dc(fft_buf, buf_len / ds);
-		remove_dc(fft_buf+1, (buf_len / ds) - 1);
-		/* window function and fft */
-		for (offset=0; offset<(buf_len/ds); offset+=(2*bin_len)) {
-			// todo, let rect skip this
-			for (j=0; j<bin_len; j++) {
-				w =  (int32_t)fft_buf[offset+j*2];
-				w *= (int32_t)(window_coefs[j]);
-				//w /= (int32_t)(ds);
-				fft_buf[offset+j*2]   = (int16_t)w;
-				w =  (int32_t)fft_buf[offset+j*2+1];
-				w *= (int32_t)(window_coefs[j]);
-				//w /= (int32_t)(ds);
-				fft_buf[offset+j*2+1] = (int16_t)w;
-			}
-			//fix_fft(fft_buf+offset, bin_e);
-			if (!peak_hold) {
-				for (j=0; j<bin_len; j++) {
-					ts->avg[j] += real_conj(fft_buf[offset+j*2], fft_buf[offset+j*2+1]);
-				}
-			} else {
-				for (j=0; j<bin_len; j++) {
-					ts->avg[j] = MAX(real_conj(fft_buf[offset+j*2], fft_buf[offset+j*2+1]), ts->avg[j]);
-				}
-			}
-			ts->samples += ds;
-		}
+
+	ts = &tunes[i];
+
+	//Make sure tuner is set to correct frequency
+	f = (int)rtlsdr_get_center_freq(dev);
+	if (f != ts->freq) { retune(dev, ts->freq);}
+
+	//Get data
+	rtlsdr_read_sync(dev, ts->buf8, buf_len, &n_read);
+	if (n_read != buf_len) {
+		fprintf(stderr, "Error: dropped samples.\n");}
+	
+	/* rms */
+	if (bin_len == 1) {
+		rms_power(ts);
 	}
 }
 
@@ -549,8 +499,8 @@ void csv_dbm(struct tuning_state *ts)
 	/* Hz low, Hz high, Hz step, samples, dbm, dbm, ... */
 	bin_count = (int)((double)len * (1.0 - ts->crop));
 	bw2 = (int)(((double)ts->rate * (double)bin_count) / (len * 2 * ds));
-	fprintf(file, "%i, %i, %.2f, %i, %i, ", ts->freq - bw2, ts->freq + bw2,
-		(double)ts->rate / (double)(len*ds), ts->samples, len);
+	fprintf(file, "%i, %i, %.2f, %i, %i, %.2f", ts->freq - bw2, ts->freq + bw2,
+		(double)ts->rate / (double)(len*ds), ts->samples, len, ts->rms_pow);
 
 	// something seems off with the dbm math
 	i1 = 0 + (int)((double)len * ts->crop * 0.5);
