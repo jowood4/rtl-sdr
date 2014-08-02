@@ -460,7 +460,7 @@ int main(int argc, char **argv)
 	char *filename = NULL;
 	int i, length, n_read, r, opt, wb_mode = 0;
 	int f_set = 0;
-	int gain = 16;//AUTO_GAIN; // tenths of a dB
+	int gain = 254;//AUTO_GAIN; // tenths of a dB
 	uint8_t *buffer;
 	int dev_index = 0;
 	int dev_given = 0;
