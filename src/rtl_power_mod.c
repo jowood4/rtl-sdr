@@ -373,7 +373,7 @@ void frequency_range(double freq, double rate, int bin)
 		ts->avg[j] = 0L;
 	}
 
-	buf_len = 2 * (1<<ts->bin_e) * ts->downsample;
+	/*buf_len = 2 * (1<<ts->bin_e) * ts->downsample;
 	if (buf_len < DEFAULT_BUF_LENGTH) {
 		buf_len = DEFAULT_BUF_LENGTH;
 	}
@@ -383,7 +383,7 @@ void frequency_range(double freq, double rate, int bin)
 		fprintf(stderr, "Error: malloc.\n");
 		exit(1);
 	}
-	ts->buf_len = buf_len;
+	ts->buf_len = buf_len;*/
 
 	/* report */
 	fprintf(stderr, "Number of frequency hops: %i\n", tune_count);
