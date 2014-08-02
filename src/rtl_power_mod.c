@@ -355,7 +355,9 @@ void frequency_range(double freq, double rate, int bin)
 	}
 	else
 	{
-		//ts->bin_e = bin;
+		if (bin < DEFAULT_BUF_LENGTH) {
+			bin = DEFAULT_BUF_LENGTH;
+		}
 		ts->buf_len = bin;
 	}
 	
@@ -374,9 +376,7 @@ void frequency_range(double freq, double rate, int bin)
 	}
 
 	/*buf_len = 2 * (1<<ts->bin_e) * ts->downsample;
-	if (buf_len < DEFAULT_BUF_LENGTH) {
-		buf_len = DEFAULT_BUF_LENGTH;
-	}
+
 
 	ts->buf8 = (uint8_t*)malloc(buf_len * sizeof(uint8_t));
 	if (!ts->buf8) {
