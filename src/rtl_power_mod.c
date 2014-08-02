@@ -425,8 +425,13 @@ void scanner(void)
 	f = (int)rtlsdr_get_center_freq(dev);
 	if (f != ts->freq) { retune(dev, ts->freq);}
 
+	fprintf(file, "Buffer = %i\n", buf_len);
+
 	//Get data
 	rtlsdr_read_sync(dev, ts->buf8, buf_len, &n_read);
+	fprintf(file, "Read = %i\n", n_read);
+
+
 	if (n_read != buf_len) {
 		fprintf(stderr, "Error: dropped samples.\n");}
 	
