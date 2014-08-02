@@ -301,8 +301,8 @@ void rms_power(struct tuning_state *ts)
 	//err = t * 2 * dc - dc * dc * buf_len;
 	//p -= (long)round(err);
 
-	ts->rms_pow = 10*log10(rms/127);
-	ts->rms_pow_dc = 10*log10((rms-dc)/127);
+	ts->rms_pow = 20*log10(rms/256);
+	ts->rms_pow_dc = 20*log10((rms-dc)/256);
 
 	//if (!peak_hold) {
 	//	ts->avg[0] += p;
