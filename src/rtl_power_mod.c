@@ -293,6 +293,8 @@ void rms_power(struct tuning_state *ts)
 		
 	}
 
+	fprintf(file, "%i\n", buf_len);
+
 	rms = sqrt(rms_sum/ (buf_len/2));
 	dc = dc_sum / (buf_len/2);
 
