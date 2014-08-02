@@ -293,8 +293,6 @@ void rms_power(struct tuning_state *ts)
 		
 	}
 
-	fprintf(file, "%i\n", buf_len);
-
 	rms = sqrt(rms_sum/ (buf_len/2));
 	dc = dc_sum / (buf_len/2);
 
@@ -355,10 +353,10 @@ void frequency_range(double freq, double rate, int bin)
 	}
 	else
 	{
-		//if (bin < DEFAULT_BUF_LENGTH) {
+		//if (pow(2,bin) < DEFAULT_BUF_LENGTH) {
 		//	bin = DEFAULT_BUF_LENGTH;
 		//}
-		ts->buf_len = bin;
+		ts->buf_len = pow(2,bin);
 	}
 	
 	ts->bin_e = 10;
@@ -421,12 +419,8 @@ void scanner(void)
 	f = (int)rtlsdr_get_center_freq(dev);
 	if (f != ts->freq) { retune(dev, ts->freq);}
 
-	fprintf(file, "Buffer = %i\n", buf_len);
-
 	//Get data
 	rtlsdr_read_sync(dev, ts->buf8, buf_len, &n_read);
-	fprintf(file, "Read = %i\n", n_read);
-
 
 	if (n_read != buf_len) {
 		fprintf(stderr, "Error: dropped samples.\n");}
