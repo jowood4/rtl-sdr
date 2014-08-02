@@ -355,9 +355,9 @@ void frequency_range(double freq, double rate, int bin)
 	}
 	else
 	{
-		if (bin < DEFAULT_BUF_LENGTH) {
-			bin = DEFAULT_BUF_LENGTH;
-		}
+		//if (bin < DEFAULT_BUF_LENGTH) {
+		//	bin = DEFAULT_BUF_LENGTH;
+		//}
 		ts->buf_len = bin;
 	}
 	
