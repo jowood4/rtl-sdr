@@ -350,13 +350,16 @@ void frequency_range(double freq, double rate, int bin)
 
 	if(bin == 0)
 	{
-		ts->bin_e = 10;//bin_e;
+		//ts->bin_e = 10;//bin_e;
+		ts->buf_len = DEFAULT_BUF_LENGTH;
 	}
 	else
 	{
-		ts->bin_e = bin;
+		//ts->bin_e = bin;
+		ts->buf_len = bin;
 	}
 	
+	ts->bin_e = 10;
 	ts->samples = 0;
 	ts->crop = 0;
 	ts->downsample = 1;//downsample;
