@@ -439,22 +439,11 @@ void csv_dbm(struct tuning_state *ts)
 	int i, len, ds, i1, i2, bw2, bin_count;
 	long tmp;
 	double dbm;
-	len = 1 << ts->bin_e;
-	ds = ts->downsample;
-	/* fix FFT stuff quirks */
-	if (ts->bin_e > 0) {
-		/* nuke DC component (not effective for all windows) */
-		ts->avg[0] = ts->avg[1];
-		/* FFT is translated by 180 degrees */
-		for (i=0; i<len/2; i++) {
-			tmp = ts->avg[i];
-			ts->avg[i] = ts->avg[i+len/2];
-			ts->avg[i+len/2] = tmp;
-		}
-	}
+	len = ts->buf_len;
+
 	/* Hz low, Hz high, Hz step, samples, dbm, dbm, ... */
 	bin_count = (int)((double)len * (1.0 - ts->crop));
-	bw2 = (int)(((double)ts->rate * (double)bin_count) / (len * 2 * ds));
+	bw2 = (int)(((double)ts->rate * (double)bin_count) / (len * 2));
 	fprintf(file, "Lowest Frequency is %.2f MHz\n", (double)(ts->freq - bw2)/1e6);
 	fprintf(file, "Highest Frequency is %.2f MHz\n", (double)(ts->freq + bw2)/1e6);
 	fprintf(file, "FFT Bin Size would be %.2f kHz\n", (double)(ts->rate / len)/1e3);
