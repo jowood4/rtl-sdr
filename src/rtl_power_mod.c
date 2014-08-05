@@ -76,41 +76,19 @@
 #define MINIMUM_RATE			1000000
 
 static volatile int do_exit = 0;
-static rtlsdr_dev_t *dev = NULL;
 FILE *file;
 
-int16_t* Sinewave;
 double* power_table;
 int N_WAVE, LOG2_N_WAVE;
 int next_power;
-int16_t *fft_buf;
-int *window_coefs;
 
-struct tuning_state
-/* one per tuning range */
-{
-	int freq;
-	int rate;
-	int bin_e;
-	long *avg;  /* length == 2^bin_e */
-	int samples;
-	int downsample;
-	int downsample_passes;  /* for the recursive filter */
-	double crop;
 
-	uint8_t *buf8;
-	int buf_len;
-
-	double rms_pow;
-	double rms_pow_dc;
-	//int *comp_fir;
-	//pthread_rwlock_t buf_lock;
-	//pthread_mutex_t buf_mutex;
-};
 
 /* 3000 is enough for 3GHz b/w worst case */
 #define MAX_TUNES	3000
 struct tuning_state tunes[MAX_TUNES];
+static rtlsdr_dev_t *dev = NULL;
+
 int tune_count = 0;
 
 int boxcar = 1;
@@ -169,58 +147,6 @@ void usage(void)
 	exit(1);
 }
 
-void multi_bail(void)
-{
-	if (do_exit == 1)
-	{
-		fprintf(stderr, "Signal caught, finishing scan pass.\n");
-	}
-	if (do_exit >= 2)
-	{
-		fprintf(stderr, "Signal caught, aborting immediately.\n");
-	}
-}
-
-#ifdef _WIN32
-BOOL WINAPI
-sighandler(int signum)
-{
-	if (CTRL_C_EVENT == signum) {
-		do_exit++;
-		multi_bail();
-		return TRUE;
-	}
-	return FALSE;
-}
-#else
-static void sighandler(int signum)
-{
-	do_exit++;
-	multi_bail();
-}
-#endif
-
-/* more cond dumbness */
-#define safe_cond_signal(n, m) pthread_mutex_lock(m); pthread_cond_signal(n); pthread_mutex_unlock(m)
-#define safe_cond_wait(n, m) pthread_mutex_lock(m); pthread_cond_wait(n, m); pthread_mutex_unlock(m)
-
-/* {length, coef, coef, coef}  and scaled by 2^15
-   for now, only length 9, optimal way to get +85% bandwidth */
-#define CIC_TABLE_MAX 10
-int cic_9_tables[][10] = {
-	{0,},
-	{9, -156,  -97, 2798, -15489, 61019, -15489, 2798,  -97, -156},
-	{9, -128, -568, 5593, -24125, 74126, -24125, 5593, -568, -128},
-	{9, -129, -639, 6187, -26281, 77511, -26281, 6187, -639, -129},
-	{9, -122, -612, 6082, -26353, 77818, -26353, 6082, -612, -122},
-	{9, -120, -602, 6015, -26269, 77757, -26269, 6015, -602, -120},
-	{9, -120, -582, 5951, -26128, 77542, -26128, 5951, -582, -120},
-	{9, -119, -580, 5931, -26094, 77505, -26094, 5931, -580, -119},
-	{9, -119, -578, 5921, -26077, 77484, -26077, 5921, -578, -119},
-	{9, -119, -577, 5917, -26067, 77473, -26067, 5917, -577, -119},
-	{9, -199, -362, 5303, -25505, 77489, -25505, 5303, -362, -199},
-};
-
 #ifdef _MSC_VER
 double log2(double n)
 {
@@ -228,29 +154,8 @@ double log2(double n)
 }
 #endif
 
-/* FFT based on fix_fft.c by Roberts, Slaney and Bouras
-   http://www.jjj.de/fft/fftpage.html
-   16 bit ints for everything
-   -32768..+32768 maps to -1.0..+1.0
-*/
 
-void sine_table(int size)
-{
-	int i;
-	double d;
-	LOG2_N_WAVE = size;
-	N_WAVE = 1 << LOG2_N_WAVE;
-	Sinewave = malloc(sizeof(int16_t) * N_WAVE*3/4);
-	power_table = malloc(sizeof(double) * N_WAVE);
-	for (i=0; i<N_WAVE*3/4; i++)
-	{
-		d = (double)i * 2.0 * M_PI / N_WAVE;
-		Sinewave[i] = (int)round(32767*sin(d));
-		//printf("%i\n", Sinewave[i]);
-	}
-}
-
-void rms_power(int ts_index, double *rms_pow, double *rms_pow_dc)
+void rms_power(int ts_index, double *rms_pow_val, double *rms_pow_dc_val)
 /* for bins between 1MHz and 2MHz */
 {
 	struct tuning_state *ts = &tunes[ts_index];
@@ -281,68 +186,81 @@ void rms_power(int ts_index, double *rms_pow, double *rms_pow_dc)
 		rms_sum += s1_2 + s2_2;
 		//fprintf(file, "%.2f\n", dc_sum);
 		//fprintf(file, "%.2f\n", rms_sum);
-		
+
 	}
 
 	rms = sqrt(rms_sum/ (buf_len/2));
 	dc = dc_sum / (buf_len/2);
 
-	rms_pow_val = 20*log10(rms/90.5);
-	rms_pow_dc_val = 20*log10((rms-dc)/90.5);  //128/sqrt(2)
+	*rms_pow_val = 20*log10(rms/90.5);
+	*rms_pow_dc_val = 20*log10((rms-dc)/90.5);  //128/sqrt(2)
 }
 
-void frequency_range(double freq, double rate, int bin)
-/* flesh out the tunes[] for scanning */
-// do we want the fewest ranges (easy) or the fewest bins (harder)?
+void read_data(int index)
 {
-	char *start, *stop, *step;
-	int i, j, buf_len;
-	//double bin_size;
+	int n_read;
 	struct tuning_state *ts;
-
-	tune_count = 1;
-
-	/* build the array */
-
-	i = 0;
-	ts = &tunes[i];
-
-	if(freq == 0)
-	{
-		ts->freq = 1e9;//lower + i*bw_seen + bw_seen/2;
-	}
-	else
-	{
-		ts->freq = freq;
-	}
-
-	if(rate == 0)
-	{
-		ts->rate = 2.56e6;//bw_used;
-	}
-	else
-	{
-		ts->rate = rate;
-	}
-
-	if(bin == 0)
-	{
-		//ts->bin_e = 10;//bin_e;
-		ts->buf_len = DEFAULT_BUF_LENGTH;
-	}
-	else
-	{
-		//if (pow(2,bin) < DEFAULT_BUF_LENGTH) {
-		//	bin = DEFAULT_BUF_LENGTH;
-		//}
-		ts->buf_len = pow(2,bin);
-	}
+	ts = &tunes[index];
 	
+	//Get data
+	rtlsdr_read_sync(dev, ts->buf8, ts->buf_len, &n_read);
+
+	if (n_read != buf_len) {
+		fprintf(stderr, "Error: dropped samples.\n");}
+
+}
+
+struct tuning_state
+/* one per tuning range */
+{
+	int freq;  //Tuner frequency
+	int rate;  //Sample Rate
+	int buf_len;  //Number of samples
+	int gain;  //AUTO_GAIN; // tenths of a dB
+	
+	int direct_sampling;
+	int offset_tuning;
+	double crop;
+	int ppm_error;
+	int custom_ppm;
+	
+	int bin_e;
+	long *avg;  /* length == 2^bin_e */
+	int samples;
+	int downsample;
+	int downsample_passes;  /* for the recursive filter */
+
+	uint8_t *buf8;
+
+
+	double rms_pow;
+	double rms_pow_dc;
+
+};
+
+void initialize_tuner_values(int index)
+{
+	struct tuning_state *ts;
+	ts = &tunes[index];
+
+	//Tuner Properties
+	ts->freq = 1e9;
+	ts->rate = 2.048e6;
+	ts->buf_len = DEFAULT_BUF_LENGTH;
+	ts->gain = AUTO_GAIN;  //254
+	ts->direct_sampling = 0;
+	ts->offset_tuning = 0;
+	ts->crop = 0.0;
+	ts->ppm_error = 0;
+	ts->custom_ppm = 0;
+	
+	//FFT Properties
 	ts->bin_e = 10;
 	ts->samples = 0;
 	ts->crop = 0;
 	ts->downsample = 1;//downsample;
 	ts->downsample_passes = 0;//downsample_passes;
+	
 	ts->avg = (long*)malloc((1<<ts->bin_e) * sizeof(long));
 	if (!ts->avg) {
 		fprintf(stderr, "Error: malloc.\n");
@@ -357,151 +275,13 @@ void frequency_range(double freq, double rate, int bin)
 		fprintf(stderr, "Error: malloc.\n");
 		exit(1);
 	}
-
-	/* report */
-	fprintf(stderr, "Number of frequency hops: %i\n", tune_count);
-	fprintf(stderr, "Dongle bandwidth: %iHz\n", ts->rate);
-	fprintf(stderr, "Downsampling by: %ix\n", ts->downsample);
-	fprintf(stderr, "Cropping by: %0.2f%%\n", ts->crop*100);
-	//fprintf(stderr, "Total FFT bins: %i\n", tune_count * (1<<ts->bin_e));
-	//fprintf(stderr, "Logged FFT bins: %i\n", (int)((double)(tune_count * (1<<ts->bin_e)) * (1.0-ts->crop)));
-	//fprintf(stderr, "FFT bin size: %0.2fHz\n", bin_size);
-	fprintf(stderr, "Buffer size: %i bytes (%0.2fms)\n", ts->buf_len, 1000 * 0.5 * (float)ts->buf_len / (float)ts->rate);
 }
 
-void retune(rtlsdr_dev_t *d, int freq)
+void find_and_open_dev(void)
 {
-	uint8_t dump[BUFFER_DUMP];
-	int n_read;
-	rtlsdr_set_center_freq(d, (uint32_t)freq);
-	/* wait for settling and flush buffer */
-	usleep(5000);
-	rtlsdr_read_sync(d, &dump, BUFFER_DUMP, &n_read);
-	if (n_read != BUFFER_DUMP) {
-		fprintf(stderr, "Error: bad retune.\n");}
-}
+	int dev_index, r = 0;
 
-
-void scanner(void)
-{
-	int f, n_read, offset, bin_e, bin_len, buf_len;
-	int32_t w;
-	struct tuning_state *ts;
-
-	bin_e = tunes[0].bin_e;
-	bin_len = 1 << bin_e;
-	buf_len = tunes[0].buf_len;
-
-	ts = &tunes[0];
-
-	//Make sure tuner is set to correct frequency
-	f = (int)rtlsdr_get_center_freq(dev);
-	if (f != ts->freq) { retune(dev, ts->freq);}
-
-	//Get data
-	rtlsdr_read_sync(dev, ts->buf8, buf_len, &n_read);
-
-	if (n_read != buf_len) {
-		fprintf(stderr, "Error: dropped samples.\n");}
-	
-	/* rms */
-	rms_power(ts);
-}
-
-double rectangle(int i, int length)
-{
-	return 1.0;
-}
-
-void csv_dbm(struct tuning_state *ts)
-{
-	int i, len, ds, i1, i2, bw2, bin_count;
-	long tmp;
-	double dbm;
-	len = ts->buf_len;
-
-	/* Hz low, Hz high, Hz step, samples, dbm, dbm, ... */
-	bin_count = (int)((double)len * (1.0 - ts->crop));
-	bw2 = (int)(((double)ts->rate * (double)bin_count) / (len * 2));
-	fprintf(file, "Lowest Frequency is %.2f MHz\n", (double)(ts->freq - bw2)/1e6);
-	fprintf(file, "Highest Frequency is %.2f MHz\n", (double)(ts->freq + bw2)/1e6);
-	fprintf(file, "FFT Bin Size would be %.2f kHz\n", (double)(ts->rate / len)/1e3);
-	fprintf(file, "Number of Samples is %i\n", len);
-	fprintf(file, "RMS Voltage with DC is %.2f dBFS\n", (double)(ts->rms_pow));
-	fprintf(file, "RMS Voltage without DC is %.2f dBFS\n", (double)(ts->rms_pow_dc));
-}
-
-int main(int argc, char **argv)
-{
-#ifndef _WIN32
-	struct sigaction sigact;
-#endif
-	char *filename = NULL;
-	int i, length, n_read, r, opt, wb_mode = 0;
-	int f_set = 0;
-	int gain = 254;//AUTO_GAIN; // tenths of a dB
-	uint8_t *buffer;
-	int dev_index = 0;
-	int dev_given = 0;
-	int ppm_error = 0;
-	int custom_ppm = 0;
-	int interval = 10;
-	int fft_threads = 1;
-	int smoothing = 0;
-	int single = 0;
-	int direct_sampling = 0;
-	int offset_tuning = 0;
-	double crop = 0.0;
-	char *freq_optarg;
-	time_t next_tick;
-	time_t time_now;
-	time_t exit_time = 0;
-	char t_str[50];
-	struct tm *cal_time;
-	double (*window_fn)(int, int) = rectangle;
-	
-
-	double freq1 = 0;
-	double rate = 0;
-	int bin = 0;
-
-	freq_optarg = "";
-
-	while ((opt = getopt(argc, argv, "f:r:b:")) != -1) {
-		switch (opt) {
-		case 'f': // lower:upper:bin_size
-			freq1 = atof(optarg);
-			break;
-		case 'r': // lower:upper:bin_size
-			rate = atof(optarg);
-			break;
-		case 'b': // lower:upper:bin_size
-			bin = atoi(optarg);
-			break;
-		default:
-			break;
-		}
-	}
-
-	frequency_range(freq1, rate, bin);
-
-	if (tune_count == 0) {
-		usage();}
-
-	if (argc <= optind) {
-		filename = "-";
-	} else {
-		filename = argv[optind];
-	}
-
-	if (interval < 1) {
-		interval = 1;}
-	fprintf(stderr, "Reporting every %i seconds\n", interval);
-
-	//Find device if not specified
-	if (!dev_given) {
-		dev_index = verbose_device_search("0");
-	}
+	dev_index = verbose_device_search("0");
 
 	if (dev_index < 0) {
 		exit(1);
@@ -512,73 +292,139 @@ int main(int argc, char **argv)
 		fprintf(stderr, "Failed to open rtlsdr device #%d.\n", dev_index);
 		exit(1);
 	}
+}
 
+void close_dev(void)
+{
+	rtlsdr_close(dev);
+}
 
-	//Configure Tuner settings, if necessary
-	if (direct_sampling) {
+void set_tuner(int index)
+{
+	uint8_t dump[BUFFER_DUMP];
+	int n_read;
+	struct tuning_state *ts;
+	ts = &tunes[index];
+	
+	if (ts->direct_sampling) {
 		verbose_direct_sampling(dev, direct_sampling);
 	}
 
-	if (offset_tuning) {
+	if (ts->offset_tuning) {
 		verbose_offset_tuning(dev);
 	}
 
 	/* Set the tuner gain */
-	if (gain == AUTO_GAIN) {
+	if (ts->gain == AUTO_GAIN) {
 		verbose_auto_gain(dev);
 	} else {
-		gain = nearest_gain(dev, gain);
-		verbose_gain_set(dev, gain);
+		ts->gain = nearest_gain(dev, ts->gain);
+		verbose_gain_set(dev, ts->gain);
 	}
 
-	if (!custom_ppm) {
-		verbose_ppm_eeprom(dev, &ppm_error);
+	if (!ts->custom_ppm) {
+		verbose_ppm_eeprom(dev, &ts->ppm_error);
 	}
-	verbose_ppm_set(dev, ppm_error);
+	verbose_ppm_set(dev, ts->ppm_error);
 
 	/* Reset endpoint before we start reading from it (mandatory) */
 	verbose_reset_buffer(dev);
+	
+	/* actually do stuff */
+	rtlsdr_set_sample_rate(dev, (uint32_t)ts->rate);
+	
+	rtlsdr_set_center_freq(d, (uint32_t)freq);
+	/* wait for settling and flush buffer */
+	usleep(5000);
+	rtlsdr_read_sync(d, &dump, BUFFER_DUMP, &n_read);
+	if (n_read != BUFFER_DUMP) {
+		fprintf(stderr, "Error: bad retune.\n");}
+
+}
+
+
+int main(int argc, char **argv)
+{
+	char *filename = NULL;
+	int opt = 0;
+	int bw2, bin_count;
+	double rms_pow_val, rms_pow_dc_val;
+
+	time_t time_now;
+	char t_str[50];
+	struct tm *cal_time;
+	
+	struct tuning_state *ts;
 
 	file = stdout;
+	
+	index = 0;
+	ts = &tunes[index];
 
-	/* actually do stuff */
-	rtlsdr_set_sample_rate(dev, (uint32_t)tunes[0].rate);
-	sine_table(tunes[0].bin_e);
-	next_tick = time(NULL) + interval;
-	if (exit_time) {
-		exit_time = time(NULL) + exit_time;}
-	fft_buf = malloc(tunes[0].buf_len * sizeof(int16_t));
-	length = 1 << tunes[0].bin_e;
-	window_coefs = malloc(length * sizeof(int));
-	for (i=0; i<length; i++) {
-		window_coefs[i] = (int)(256*window_fn(i, length));
-	}
-	//while (!do_exit) {
-		scanner();
-		time_now = time(NULL);
-		//if (time_now < next_tick) {
-		//	continue;}
-		// time, Hz low, Hz high, Hz step, samples, dbm, dbm, ...
-		cal_time = localtime(&time_now);
-		strftime(t_str, 50, "%Y-%m-%d, %H:%M:%S", cal_time);
-		for (i=0; i<tune_count; i++) {
-			fprintf(file, "%s, ", t_str);
-			csv_dbm(&tunes[i]);
+	//Set initial state for tuner
+	initialize_tuner_values(index);
+
+	//Change tuner values based on input options
+	while ((opt = getopt(argc, argv, "f:r:b:")) != -1) {
+		switch (opt) {
+		case 'f': // lower:upper:bin_size
+			ts->freq = atof(optarg);
+			break;
+		case 'r':
+			ts->rate = atof(optarg);
+			break;
+		case 'b': 
+			ts->buf_len = pow(2,atoi(optarg));
+			//ts->buf_len = pow(2,bin);
+			break;
+		default:
+			usage();
+			break;
 		}
-		fflush(file);
-		while (time(NULL) >= next_tick) {
-			next_tick += interval;}
-		if (single) {
-			do_exit = 1;}
-		if (exit_time && time(NULL) >= exit_time) {
-			do_exit = 1;}
-	//}
+	}
 
-	rtlsdr_close(dev);
-	free(fft_buf);
-	free(window_coefs);
+	if (argc <= optind) {
+		filename = "-";
+	} else {
+		filename = argv[optind];
+	}
+	
+	find_and_open_dev();
+
+	//Configure Tuner settings, if necessary
+	set_tuner(index);
+
+	//Get data from tuner
+	read_data(index);
+	
+	/* rms */
+	rms_power(index, &rms_pow_val, &rms_pow_dc_val);
+	
+	//Print Time
+	time_now = time(NULL);
+	cal_time = localtime(&time_now);
+	strftime(t_str, 50, "%Y-%m-%d, %H:%M:%S", cal_time);
+	fprintf(file, "%s\n", t_str);
+	
+	bin_count = (int)((double)ts->buf_len * (1.0 - ts->crop));
+	bw2 = (int)(((double)ts->rate * (double)bin_count) / (ts->buf_len * 2));
+		
+	//Print all info
+	fprintf(stderr, "Number of frequency hops: %i\n", tune_count);
+	fprintf(stderr, "Dongle bandwidth: %iHz\n", ts->rate);
+	fprintf(stderr, "Downsampling by: %ix\n", ts->downsample);
+	fprintf(stderr, "Cropping by: %0.2f%%\n", ts->crop*100);
+	fprintf(stderr, "Buffer size: %i bytes (%0.2fms)\n", ts->buf_len, 1000 * 0.5 * (float)ts->buf_len / (float)ts->rate);
+	fprintf(file, "Lowest Frequency is %.2f MHz\n", (double)(ts->freq - bw2)/1e6);
+	fprintf(file, "Highest Frequency is %.2f MHz\n", (double)(ts->freq + bw2)/1e6);
+	fprintf(file, "FFT Bin Size would be %.2f kHz\n", (double)(ts->rate / ts->buf_len)/1e3);
+	fprintf(file, "Number of Samples is %i\n", ts->buf_len);
+	fprintf(file, "RMS Voltage with DC is %.2f dBFS\n", rms_pow_val);
+	fprintf(file, "RMS Voltage without DC is %.2f dBFS\n", rms_pow_dc_val);
+	
+	fflush(file);
+		
+	close_dev();
 
 	return r >= 0 ? r : -r;
 }
-
-// vim: tabstop=8:softtabstop=8:shiftwidth=8:noexpandtab
