@@ -97,11 +97,10 @@ struct tuning_state
 	int downsample;
 	int downsample_passes;  /* for the recursive filter */
 	double crop;
-	//pthread_rwlock_t avg_lock;
-	//pthread_mutex_t avg_mutex;
-	/* having the iq buffer here is wasteful, but will avoid contention */
+
 	uint8_t *buf8;
 	int buf_len;
+
 	double rms_pow;
 	double rms_pow_dc;
 	//int *comp_fir;
@@ -251,25 +250,17 @@ void sine_table(int size)
 	}
 }
 
-inline int16_t FIX_MPY(int16_t a, int16_t b)
-/* fixed point multiply and scale */
-{
-	int c = ((int)a * (int)b) >> 14;
-	b = c & 0x01;
-	return (c >> 1) + b;
-}
-
-void rms_power(struct tuning_state *ts)
+void rms_power(int ts_index, double *rms_pow, double *rms_pow_dc)
 /* for bins between 1MHz and 2MHz */
 {
+	struct tuning_state *ts = &tunes[ts_index];
+
 	int i, s1, s2;
 	uint8_t *buf = ts->buf8;
 	int buf_len = ts->buf_len;
-	//long p, t;
-	//int ln, lp;
-	//double dc, err;
 	double rms_sum, dc_sum, s1_2, s2_2;
-	double rms, dc;
+	double rms_pow_val = &rms_pow;
+	double rms_pow_dc_val = &rms_pow_dc;
 
 	//for (i=0; i<10; i++) {
 	//	fprintf(file, "%i\n", buf[i]-127);
@@ -296,20 +287,8 @@ void rms_power(struct tuning_state *ts)
 	rms = sqrt(rms_sum/ (buf_len/2));
 	dc = dc_sum / (buf_len/2);
 
-	/* correct for dc offset in squares */
-	//dc = (double)t / (double)buf_len;
-	//err = t * 2 * dc - dc * dc * buf_len;
-	//p -= (long)round(err);
-
-	ts->rms_pow = 20*log10(rms/90.5);
-	ts->rms_pow_dc = 20*log10((rms-dc)/90.5);  //128/sqrt(2)
-
-	//if (!peak_hold) {
-	//	ts->avg[0] += p;
-	//} else {
-	//	ts->avg[0] = MAX(ts->avg[0], p);
-	//}
-	ts->samples += 1;
+	rms_pow_val = 20*log10(rms/90.5);
+	rms_pow_dc_val = 20*log10((rms-dc)/90.5);  //128/sqrt(2)
 }
 
 void frequency_range(double freq, double rate, int bin)
@@ -405,7 +384,7 @@ void retune(rtlsdr_dev_t *d, int freq)
 
 void scanner(void)
 {
-	int i, j, j2, f, n_read, offset, bin_e, bin_len, buf_len, ds, ds_p;
+	int f, n_read, offset, bin_e, bin_len, buf_len;
 	int32_t w;
 	struct tuning_state *ts;
 
