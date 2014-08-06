@@ -189,8 +189,6 @@ void rms_power(int ts_index, double *rms_pow_val, double *rms_pow_dc_val)
 	uint8_t *buf = ts->buf8;
 	int buf_len = ts->buf_len;
 	double rms_sum, dc_sum, s1_2, s2_2;
-	double rms_pow_val = &rms_pow;
-	double rms_pow_dc_val = &rms_pow_dc;
 
 	//for (i=0; i<10; i++) {
 	//	fprintf(file, "%i\n", buf[i]-127);
