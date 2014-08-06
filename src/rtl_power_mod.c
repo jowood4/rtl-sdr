@@ -347,7 +347,8 @@ int main(int argc, char **argv)
 	int opt = 0;
 	int bw2, bin_count;
 	double rms_pow_val, rms_pow_dc_val;
-	int index, r = 0;
+	int r = 0;
+	int index = 0;
 
 	time_t time_now;
 	char t_str[50];
