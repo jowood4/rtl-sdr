@@ -334,7 +334,7 @@ void set_tuner(int index)
 	rtlsdr_set_center_freq(dev, (uint32_t)ts->freq);
 	/* wait for settling and flush buffer */
 	usleep(5000);
-	rtlsdr_read_sync(d, &dump, BUFFER_DUMP, &n_read);
+	rtlsdr_read_sync(dev, &dump, BUFFER_DUMP, &n_read);
 	if (n_read != BUFFER_DUMP) {
 		fprintf(stderr, "Error: bad retune.\n");}
 
@@ -347,6 +347,7 @@ int main(int argc, char **argv)
 	int opt = 0;
 	int bw2, bin_count;
 	double rms_pow_val, rms_pow_dc_val;
+	int index = 0;
 
 	time_t time_now;
 	char t_str[50];
@@ -356,7 +357,6 @@ int main(int argc, char **argv)
 
 	file = stdout;
 	
-	index = 0;
 	ts = &tunes[index];
 
 	//Set initial state for tuner
