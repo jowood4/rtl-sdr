@@ -237,6 +237,8 @@ void read_data(int index)
 void initialize_tuner_values(int index)
 {
 	struct tuning_state *ts;
+	int j;
+
 	ts = &tunes[index];
 
 	//Tuner Properties
@@ -303,7 +305,7 @@ void set_tuner(int index)
 	ts = &tunes[index];
 	
 	if (ts->direct_sampling) {
-		verbose_direct_sampling(dev, direct_sampling);
+		verbose_direct_sampling(dev, ts->direct_sampling);
 	}
 
 	if (ts->offset_tuning) {
@@ -329,7 +331,7 @@ void set_tuner(int index)
 	/* actually do stuff */
 	rtlsdr_set_sample_rate(dev, (uint32_t)ts->rate);
 	
-	rtlsdr_set_center_freq(d, (uint32_t)freq);
+	rtlsdr_set_center_freq(dev, (uint32_t)ts->freq);
 	/* wait for settling and flush buffer */
 	usleep(5000);
 	rtlsdr_read_sync(d, &dump, BUFFER_DUMP, &n_read);
