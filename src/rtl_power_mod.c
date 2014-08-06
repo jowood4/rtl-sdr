@@ -82,7 +82,32 @@ double* power_table;
 int N_WAVE, LOG2_N_WAVE;
 int next_power;
 
+struct tuning_state
+/* one per tuning range */
+{
+	int freq;  //Tuner frequency
+	int rate;  //Sample Rate
+	int buf_len;  //Number of samples
+	int gain;  //AUTO_GAIN; // tenths of a dB
+	
+	int direct_sampling;
+	int offset_tuning;
+	double crop;
+	int ppm_error;
+	int custom_ppm;
+	
+	int bin_e;
+	long *avg;  /* length == 2^bin_e */
+	int samples;
+	int downsample;
+	int downsample_passes;  /* for the recursive filter */
 
+	uint8_t *buf8;
+
+
+	double rms_pow;
+	double rms_pow_dc;
+};
 
 /* 3000 is enough for 3GHz b/w worst case */
 #define MAX_TUNES	3000
@@ -209,34 +234,6 @@ void read_data(int index)
 		fprintf(stderr, "Error: dropped samples.\n");}
 
 }
-
-struct tuning_state
-/* one per tuning range */
-{
-	int freq;  //Tuner frequency
-	int rate;  //Sample Rate
-	int buf_len;  //Number of samples
-	int gain;  //AUTO_GAIN; // tenths of a dB
-	
-	int direct_sampling;
-	int offset_tuning;
-	double crop;
-	int ppm_error;
-	int custom_ppm;
-	
-	int bin_e;
-	long *avg;  /* length == 2^bin_e */
-	int samples;
-	int downsample;
-	int downsample_passes;  /* for the recursive filter */
-
-	uint8_t *buf8;
-
-
-	double rms_pow;
-	double rms_pow_dc;
-
-};
 
 void initialize_tuner_values(int index)
 {
