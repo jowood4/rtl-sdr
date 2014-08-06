@@ -189,6 +189,7 @@ void rms_power(int ts_index, double *rms_pow_val, double *rms_pow_dc_val)
 	uint8_t *buf = ts->buf8;
 	int buf_len = ts->buf_len;
 	double rms_sum, dc_sum, s1_2, s2_2;
+	double rms, dc;
 
 	//for (i=0; i<10; i++) {
 	//	fprintf(file, "%i\n", buf[i]-127);
@@ -228,7 +229,7 @@ void read_data(int index)
 	//Get data
 	rtlsdr_read_sync(dev, ts->buf8, ts->buf_len, &n_read);
 
-	if (n_read != buf_len) {
+	if (n_read != ts->buf_len) {
 		fprintf(stderr, "Error: dropped samples.\n");}
 
 }
