@@ -75,8 +75,6 @@
 #define MAXIMUM_RATE			2800000
 #define MINIMUM_RATE			1000000
 
-FILE *file;
-
 struct tuning_state
 /* one per tuning range */
 {
@@ -344,6 +342,7 @@ int main(int argc, char **argv)
 	double rms_pow_val, rms_pow_dc_val;
 	int r = 0;
 	int index = 0;
+	FILE *file;
 
 	time_t time_now;
 	char t_str[50];
