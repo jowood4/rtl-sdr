@@ -75,12 +75,7 @@
 #define MAXIMUM_RATE			2800000
 #define MINIMUM_RATE			1000000
 
-static volatile int do_exit = 0;
 FILE *file;
-
-double* power_table;
-int N_WAVE, LOG2_N_WAVE;
-int next_power;
 
 struct tuning_state
 /* one per tuning range */
