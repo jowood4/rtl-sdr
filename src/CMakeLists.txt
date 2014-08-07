@@ -168,7 +168,7 @@ INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR})
 
 SET(CMAKE_SWIG_FLAGS "")
 
-SET_SOURCE_FILES_PROPERTIES(rtl_power_mod.i PROPERTIES CPLUSPLUS ON)
+#SET_SOURCE_FILES_PROPERTIES(rtl_power_mod.i PROPERTIES CPLUSPLUS ON)
 SET_SOURCE_FILES_PROPERTIES(rtl_power_mod.i PROPERTIES SWIG_FLAGS "-includeall")
-SWIG_ADD_MODULE(_rtl_power_mod python rtl_power_mod.i rtl_power_mod.c)
-SWIG_LINK_LIBRARIES(_rtl_power_mod ${PYTHON_LIBRARIES} convenience_static ${LIBUSB_LIBRARIES} rtlsdr_static)
+SWIG_ADD_MODULE(rtl_power_mod python rtl_power_mod.i rtl_power_mod.c)
+SWIG_LINK_LIBRARIES(rtl_power_mod ${PYTHON_LIBRARIES} convenience_static ${LIBUSB_LIBRARIES} rtlsdr_static)
