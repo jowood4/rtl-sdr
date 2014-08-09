@@ -255,12 +255,6 @@ void initialize_tuner_values(int index)
 	for (j=0; j<(1<<ts->bin_e); j++) {
 		ts->avg[j] = 0L;
 	}
-
-	ts->buf8 = (uint8_t*)malloc(ts->num_samples * sizeof(uint8_t));
-	if (!ts->buf8) {
-		fprintf(stderr, "Error: malloc.\n");
-		exit(1);
-	}
 }
 
 void find_and_open_dev(void)
@@ -408,6 +402,11 @@ int main(int argc, char **argv)
 	set_tuner(index);
 
 	//Get data from tuner
+	buf8 = (uint8_t*)malloc(ts->num_samples * sizeof(uint8_t));
+	if (!buf8) {
+		fprintf(stderr, "Error: malloc.\n");
+		exit(1);
+	}
 	read_data(index, buf8);
 	
 	/* rms */
@@ -436,6 +435,8 @@ int main(int argc, char **argv)
 	fprintf(file, "RMS Voltage without DC is %.2f dBFS\n", rms_pow_dc_val);
 	
 	fflush(file);
+
+	free(buf8);
 		
 	close_dev();
 

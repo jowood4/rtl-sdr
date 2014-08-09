@@ -1,6 +1,6 @@
 
  /* example.i */
- %include pointer.i
+ %include cpointer.i
 
  %module rtl_power_mod
  %{
