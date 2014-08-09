@@ -19,6 +19,7 @@
  %}
  %include "stdint.i"
  %include "cpointer.i"
+ %include "carrays.i"
  %pointer_functions(uint8_t, uint8p);
  %pointer_functions(double, doublep);
  %array_functions(uint8_t, uint8_array);
