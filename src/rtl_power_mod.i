@@ -14,6 +14,8 @@
 	extern void close_dev(void);
 
 	extern void set_tuner(int index);
+
+	extern void set_value(int index, char param, double value);
  %}
 
 extern void rms_power(int ts_index, double *rms_pow_val, double *rms_pow_dc_val);
@@ -27,4 +29,6 @@ extern void find_and_open_dev(void);
 extern void close_dev(void);
 
 extern void set_tuner(int index);
+
+extern void set_value(int index, char param, double value);
 
