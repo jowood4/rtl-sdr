@@ -21,6 +21,7 @@
  %include "cpointer.i"
  %pointer_functions(uint8_t, uint8p);
  %pointer_functions(double, doublep);
+ %array_functions(uint8_t, uint8_array);
 
 extern void rms_power(int ts_index, uint8_t *buf, double *rms_pow_val, double *rms_pow_dc_val);
 
