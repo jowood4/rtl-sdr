@@ -1,7 +1,5 @@
 
  /* example.i */
- %include cpointer.i
-
  %module rtl_power_mod
  %{
  /* Put header files here or function declarations like below */
@@ -19,6 +17,8 @@
 
 	extern void set_value(int index, char param, double value);
  %}
+
+ %include cpointer.i
 
 extern void rms_power(int ts_index, uint8_t *buf, double *rms_pow_val, double *rms_pow_dc_val);
 
