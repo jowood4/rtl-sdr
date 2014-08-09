@@ -68,7 +68,7 @@
 
 #define MAX(x, y) (((x) > (y)) ? (x) : (y))
 
-#define DEFAULT_BUF_LENGTH		(1 * 16384)
+#define DEFAULT_num_samplesGTH		(1 * 16384)
 #define AUTO_GAIN			-100
 #define BUFFER_DUMP			(1<<12)
 
@@ -80,7 +80,7 @@ struct tuning_state
 {
 	int freq;  //Tuner frequency
 	int rate;  //Sample Rate
-	int buf_len;  //Number of samples
+	int num_samples;  //Number of samples
 	int gain;  //AUTO_GAIN; // tenths of a dB
 	
 	int direct_sampling;
@@ -94,8 +94,6 @@ struct tuning_state
 	int samples;
 	int downsample;
 	int downsample_passes;  /* for the recursive filter */
-
-	uint8_t *buf8;
 
 };
 
@@ -170,14 +168,14 @@ double log2(double n)
 #endif
 
 
-void rms_power(int ts_index, double *rms_pow_val, double *rms_pow_dc_val)
+void rms_power(int ts_index, uint8_t *buf, double *rms_pow_val, double *rms_pow_dc_val)
 /* for bins between 1MHz and 2MHz */
 {
 	struct tuning_state *ts = &tunes[ts_index];
 
 	int i, s1, s2;
-	uint8_t *buf = ts->buf8;
-	int buf_len = ts->buf_len;
+	//uint8_t *buf = ts->buf8;
+	int num_samples = ts->num_samples;
 	double rms_sum, dc_sum, s1_2, s2_2;
 	double rms, dc;
 
@@ -189,7 +187,7 @@ void rms_power(int ts_index, double *rms_pow_val, double *rms_pow_dc_val)
 	rms_sum = 0;
 	dc_sum = 0;
 	//for (i=0; i<10; i=i+2) {
-	for (i=0; i<buf_len; i=i+2) {
+	for (i=0; i<num_samples; i=i+2) {
 
 		s1 = (int)buf[i] - 127;
 		s2 = (int)buf[i+1] - 127;
@@ -203,23 +201,23 @@ void rms_power(int ts_index, double *rms_pow_val, double *rms_pow_dc_val)
 
 	}
 
-	rms = sqrt(rms_sum/ (buf_len/2));
-	dc = dc_sum / (buf_len/2);
+	rms = sqrt(rms_sum/ (num_samples/2));
+	dc = dc_sum / (num_samples/2);
 
 	*rms_pow_val = 20*log10(rms/90.5);
 	*rms_pow_dc_val = 20*log10((rms-dc)/90.5);  //128/sqrt(2)
 }
 
-void read_data(int index)
+void read_data(int index, uint8_t *buf8)
 {
 	int n_read;
 	struct tuning_state *ts;
 	ts = &tunes[index];
 	
 	//Get data
-	rtlsdr_read_sync(dev, ts->buf8, ts->buf_len, &n_read);
+	rtlsdr_read_sync(dev, buf8, ts->num_samples, &n_read);
 
-	if (n_read != ts->buf_len) {
+	if (n_read != ts->num_samples) {
 		fprintf(stderr, "Error: dropped samples.\n");}
 
 }
@@ -234,7 +232,7 @@ void initialize_tuner_values(int index)
 	//Tuner Properties
 	ts->freq = 1e9;
 	ts->rate = 2.048e6;
-	ts->buf_len = DEFAULT_BUF_LENGTH;
+	ts->num_samples = DEFAULT_num_samplesGTH;
 	ts->gain = AUTO_GAIN;  //254
 	ts->direct_sampling = 0;
 	ts->offset_tuning = 0;
@@ -258,7 +256,7 @@ void initialize_tuner_values(int index)
 		ts->avg[j] = 0L;
 	}
 
-	ts->buf8 = (uint8_t*)malloc(ts->buf_len * sizeof(uint8_t));
+	ts->buf8 = (uint8_t*)malloc(ts->num_samples * sizeof(uint8_t));
 	if (!ts->buf8) {
 		fprintf(stderr, "Error: malloc.\n");
 		exit(1);
@@ -343,7 +341,7 @@ void set_value(int index, char param, double value)
 		ts->rate = (int)value;
 		break;
 	case 'b': 
-		ts->buf_len = pow(2,(int)value);
+		ts->num_samples = pow(2,(int)value);
 		break;
 	case 'g': 
 		ts->gain = (int)value;
@@ -362,6 +360,7 @@ int main(int argc, char **argv)
 	int r = 0;
 	int index = 0;
 	FILE *file;
+	uint8_t *buf8;
 
 	time_t time_now;
 	char t_str[50];
@@ -380,14 +379,16 @@ int main(int argc, char **argv)
 	while ((opt = getopt(argc, argv, "f:r:b:")) != -1) {
 		switch (opt) {
 		case 'f': // lower:upper:bin_size
-			ts->freq = atof(optarg);
+			//ts->freq = atof(optarg);
+			set_value(index, 'f', atof(optarg));
 			break;
 		case 'r':
-			ts->rate = atof(optarg);
+			//ts->rate = atof(optarg);
+			set_value(index, 'r', atof(optarg));
 			break;
 		case 'b': 
-			ts->buf_len = pow(2,atoi(optarg));
-			//ts->buf_len = pow(2,bin);
+			//ts->num_samples = pow(2,atoi(optarg));
+			set_value(index, 'b', atoi(optarg));
 			break;
 		default:
 			usage();
@@ -407,10 +408,10 @@ int main(int argc, char **argv)
 	set_tuner(index);
 
 	//Get data from tuner
-	read_data(index);
+	read_data(index, buf8);
 	
 	/* rms */
-	rms_power(index, &rms_pow_val, &rms_pow_dc_val);
+	rms_power(index, buf8, &rms_pow_val, &rms_pow_dc_val);
 	
 	//Print Time
 	time_now = time(NULL);
@@ -418,19 +419,19 @@ int main(int argc, char **argv)
 	strftime(t_str, 50, "%Y-%m-%d, %H:%M:%S", cal_time);
 	fprintf(file, "%s\n", t_str);
 	
-	bin_count = (int)((double)ts->buf_len * (1.0 - ts->crop));
-	bw2 = (int)(((double)ts->rate * (double)bin_count) / (ts->buf_len * 2));
+	bin_count = (int)((double)ts->num_samples * (1.0 - ts->crop));
+	bw2 = (int)(((double)ts->rate * (double)bin_count) / (ts->num_samples * 2));
 		
 	//Print all info
 	fprintf(stderr, "Number of frequency hops: %i\n", tune_count);
 	fprintf(stderr, "Dongle bandwidth: %iHz\n", ts->rate);
 	fprintf(stderr, "Downsampling by: %ix\n", ts->downsample);
 	fprintf(stderr, "Cropping by: %0.2f%%\n", ts->crop*100);
-	fprintf(stderr, "Buffer size: %i bytes (%0.2fms)\n", ts->buf_len, 1000 * 0.5 * (float)ts->buf_len / (float)ts->rate);
+	fprintf(stderr, "Buffer size: %i bytes (%0.2fms)\n", ts->num_samples, 1000 * 0.5 * (float)ts->num_samples / (float)ts->rate);
 	fprintf(file, "Lowest Frequency is %.2f MHz\n", (double)(ts->freq - bw2)/1e6);
 	fprintf(file, "Highest Frequency is %.2f MHz\n", (double)(ts->freq + bw2)/1e6);
-	fprintf(file, "FFT Bin Size would be %.2f kHz\n", (double)(ts->rate / ts->buf_len)/1e3);
-	fprintf(file, "Number of Samples is %i\n", ts->buf_len);
+	fprintf(file, "FFT Bin Size would be %.2f kHz\n", (double)(ts->rate / ts->num_samples)/1e3);
+	fprintf(file, "Number of Samples is %i\n", ts->num_samples);
 	fprintf(file, "RMS Voltage with DC is %.2f dBFS\n", rms_pow_val);
 	fprintf(file, "RMS Voltage without DC is %.2f dBFS\n", rms_pow_dc_val);
 	
