@@ -97,9 +97,6 @@ struct tuning_state
 
 	uint8_t *buf8;
 
-
-	double rms_pow;
-	double rms_pow_dc;
 };
 
 /* 3000 is enough for 3GHz b/w worst case */
@@ -333,6 +330,28 @@ void set_tuner(int index)
 
 }
 
+void set_value(int index, char param, double value)
+{
+	struct tuning_state *ts;
+	ts = &tunes[index];
+
+	switch (param) {
+	case 'f': // lower:upper:bin_size
+		ts->freq = (int)value;
+		break;
+	case 'r':
+		ts->rate = (int)value;
+		break;
+	case 'b': 
+		ts->buf_len = pow(2,(int)value);
+		break;
+	case 'g': 
+		ts->gain = (int)value;
+		break;
+	default:
+		break;
+	}
+} 
 
 int main(int argc, char **argv)
 {
