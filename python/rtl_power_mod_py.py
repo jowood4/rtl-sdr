@@ -37,6 +37,7 @@ for x in freq_data:
     rtl_power_mod.set_value(freq_data.index(x), 'f', x[0])
     rtl_power_mod.set_value(freq_data.index(x), 'r', x[1])
     rtl_power_mod.set_value(freq_data.index(x), 'b', x[2])
+    rtl_power_mod.set_value(freq_data.index(x), 'g', x[3])
 
 #Initialize variables for storage
 rms_pow_val = rtl_power_mod.new_doublep()
