@@ -204,8 +204,8 @@ void rms_power(int ts_index, uint8_t *buf, double *rms_pow_val, double *rms_pow_
 	rms = sqrt(rms_sum/ (num_samples/2));
 	dc = dc_sum / (num_samples/2);
 
-	*rms_pow_val = 20*log10(rms/90.5);
-	*rms_pow_dc_val = 20*log10((rms-dc)/90.5);  //128/sqrt(2)
+	*rms_pow_val = 20*log10(rms/181);
+	*rms_pow_dc_val = 20*log10((rms-dc)/181);  //256/sqrt(2)
 }
 
 void read_data(int index, uint8_t *buf8)
