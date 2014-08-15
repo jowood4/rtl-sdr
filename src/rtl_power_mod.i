@@ -16,6 +16,8 @@
 	extern void set_tuner(int index);
 
 	extern void set_value(int index, char param, double value);
+
+	extern uint32_t get_value(char param);
  %}
  %include "stdint.i"
  %include "cpointer.i"
@@ -37,4 +39,6 @@ extern void close_dev(void);
 extern void set_tuner(int index);
 
 extern void set_value(int index, char param, double value);
+
+extern uint32_t get_value(char param);
 

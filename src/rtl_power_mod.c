@@ -213,6 +213,8 @@ void read_data(int index, uint8_t *buf8)
 	int n_read;
 	struct tuning_state *ts;
 	ts = &tunes[index];
+
+	verbose_reset_buffer(dev);
 	
 	//Get data
 	rtlsdr_read_sync(dev, buf8, ts->num_samples, &n_read);
@@ -343,7 +345,26 @@ void set_value(int index, char param, double value)
 	default:
 		break;
 	}
-} 
+}
+
+uint32_t get_value(char param)
+{
+	uint32_t value = 0;
+	switch (param) {
+	case 'f': // lower:upper:bin_size
+		value = rtlsdr_get_center_freq(dev);
+		break;
+	case 'r':
+		value = rtlsdr_get_sample_rate(dev);
+		break;
+	case 'g': 
+		value = rtlsdr_get_tuner_gain(dev);
+		break;
+	default:
+		break;
+	}
+	return value;
+}
 
 int main(int argc, char **argv)
 {
