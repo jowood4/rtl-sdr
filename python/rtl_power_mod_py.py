@@ -32,13 +32,12 @@ rtl_power_mod.find_and_open_dev()
 
 #Set tuner table to settings
 
-rtl_power_mod.initialize_tuner_values(0)
 for x in freq_data:
-    rtl_power_mod.set_value(freq_data.index(x), 'f', x[0])
-    rtl_power_mod.set_value(freq_data.index(x), 'r', x[1])
-	print x[1]
+    rtl_power_mod.initialize_tuner_values(freq_data.index(x))
+    rtl_power_mod.set_value(freq_data.index(x), 'f', x[0]*1000000)
+    rtl_power_mod.set_value(freq_data.index(x), 'r', x[1]*1000)
     rtl_power_mod.set_value(freq_data.index(x), 'b', x[2])
-    rtl_power_mod.set_value(freq_data.index(x), 'g', x[3])
+    #rtl_power_mod.set_value(freq_data.index(x), 'g', x[3])
 
 #Initialize variables for storage
 rms_pow_val = rtl_power_mod.new_doublep()
@@ -58,6 +57,9 @@ for x in range(0,len(freq_data)):
     temp_list.append(int(freq_data[x][1]))
     temp_list.append(rtl_power_mod.doublep_value(rms_pow_val))
     db_data.append(temp_list)
+    #print rtl_power_mod.get_value('f')
+    #print rtl_power_mod.get_value('r')
+    #print rtl_power_mod.get_value('g')
 
 #print rtl_power_mod.uint8_array_getitem(data, 0)
 #print rtl_power_mod.doublep_value(rms_pow_val)
