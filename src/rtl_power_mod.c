@@ -332,7 +332,7 @@ void set_value(int index, char param, double value)
 		ts->freq = (int)value;
 		break;
 	case 'r':
-		ts->rate = (int)value;
+		ts->rate = (int)value*1000;
 		break;
 	case 'b': 
 		ts->num_samples = pow(2,(int)value);
