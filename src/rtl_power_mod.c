@@ -176,21 +176,22 @@ void rms_power(int ts_index, uint8_t *buf, double *rms_pow_val, double *rms_pow_
 	int i, s1, s2;
 	//uint8_t *buf = ts->buf8;
 	int num_samples = ts->num_samples;
-	double rms_sum, dc_sum, s1_2, s2_2;
-	double rms, dc;
+	double rms_sum, dc_sum, s1_2, s2_2, dc_offset_sum;
+	double rms, dc, dc_offset;
 
-	//for (i=0; i<10; i++) {
-	//	fprintf(file, "%i\n", buf[i]-127);
-	//}
-
-	//p = t = 0L;
 	rms_sum = 0;
 	dc_sum = 0;
-	//for (i=0; i<10; i=i+2) {
+	dc_offset = 0;
+
+	for (i=0; i<num_samples; i=i+1) {
+		dc_offset_sum = dc_offset_sum + (int)buf[i];
+	}
+	dc_offset = dc_offset_sum / num_samples;
+	
 	for (i=0; i<num_samples; i=i+2) {
 
-		s1 = (int)buf[i] - 127;
-		s2 = (int)buf[i+1] - 127;
+		s1 = (int)buf[i] - 127 - dc_offset;
+		s2 = (int)buf[i+1] - 127 - dc_offset;
 		s1_2 = s1 * s1;
 		s2_2 = s2 * s2;
 
