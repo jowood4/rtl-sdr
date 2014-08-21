@@ -406,7 +406,7 @@ int main(int argc, char **argv)
 			set_value(index, 'b', atoi(optarg));
 			break;
 		case 'g':
-			set_value(index, 'g', (int)atof(optarg)*10);
+			set_value(index, 'g', atof(optarg)*10);
 		default:
 			usage();
 			break;
