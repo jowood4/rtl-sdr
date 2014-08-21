@@ -407,8 +407,8 @@ int main(int argc, char **argv)
 			break;
 		case 'g':
 			set_value(index, 'g', atof(optarg)*10);
+			break;
 		default:
-			usage();
 			break;
 		}
 	}
