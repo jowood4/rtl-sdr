@@ -391,7 +391,7 @@ int main(int argc, char **argv)
 	initialize_tuner_values(index);
 
 	//Change tuner values based on input options
-	while ((opt = getopt(argc, argv, "f:r:b:")) != -1) {
+	while ((opt = getopt(argc, argv, "f:r:b:g:")) != -1) {
 		switch (opt) {
 		case 'f': // lower:upper:bin_size
 			//ts->freq = atof(optarg);
@@ -405,6 +405,8 @@ int main(int argc, char **argv)
 			//ts->num_samples = pow(2,atoi(optarg));
 			set_value(index, 'b', atoi(optarg));
 			break;
+		case 'g':
+			set_value(index, 'g', atoi(optarg));
 		default:
 			usage();
 			break;
