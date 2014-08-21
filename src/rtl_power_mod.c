@@ -184,7 +184,7 @@ void rms_power(int ts_index, uint8_t *buf, double *rms_pow_val, double *rms_pow_
 	dc_offset_sum = 0;
 
 	for (i=0; i<num_samples; i=i+1) {
-		dc_offset_sum = dc_offset_sum + (int)buf[i];
+		dc_offset_sum = dc_offset_sum + (int)buf[i] - 127;
 	}
 	dc_offset = dc_offset_sum / num_samples;
 	
