@@ -207,6 +207,16 @@ void rms_power(int ts_index, uint8_t *buf, double *rms_pow_val, double *rms_pow_
 
 	*rms_pow_val = 20*log10(rms/181);
 	*rms_pow_dc_val = 20*log10((rms-dc)/181);  //256/sqrt(2)
+
+	if(*rms_pow_val < -73)
+	{
+		*rms_pow_val = -73;
+	}
+
+	if(*rms_pow_dc_val < -73)
+	{
+		*rms_pow_dc_val = -73;
+	}
 }
 
 void read_data(int index, uint8_t *buf8)
